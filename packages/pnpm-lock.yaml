@@ -22,7 +22,7 @@ importers:
     dependencies:
       '@pathfinder-ide/react':
         specifier: 0.7.1
-        version: 0.7.1(@types/react@18.2.61)(graphql@16.8.1)(prettier@3.2.5)(react-dom@18.2.0)(react@18.2.0)
+        version: 0.7.1(@types/react@18.2.61)(graphql@16.8.1)(prettier@3.3.3)(react-dom@18.2.0)(react@18.2.0)
       graphql:
         specifier: ^16.8.1
         version: 16.8.1
@@ -249,8 +249,8 @@ importers:
         specifier: 3.0.5
         version: 3.0.5
       '@urql/core':
-        specifier: 4.3.0
-        version: 4.3.0(graphql@16.8.1)
+        specifier: 5.0.7
+        version: 5.0.7(graphql@16.8.1)
       graphql:
         specifier: 16.8.1
         version: 16.8.1
@@ -281,8 +281,8 @@ importers:
 
 packages:
 
-  /@0no-co/graphql.web@1.0.1(graphql@16.8.1):
-    resolution: {integrity: sha512-6Yaxyv6rOwRkLIvFaL0NrLDgfNqC/Ng9QOPmTmlqW4mORXMEKmh5NYGkIvvt5Yw8fZesnMAqkj8cIqTj8f40cQ==}
+  /@0no-co/graphql.web@1.0.9(graphql@16.8.1):
+    resolution: {integrity: sha512-lXSg4bDHvP8CiMdpQf9f/rca12IIjXHN/p0Rc5mgzgLe4JBlIoA1zFa9NKhfG1bW0OyI2hgaOldFCfkEQwZuEQ==}
     peerDependencies:
       graphql: ^14.0.0 || ^15.0.0 || ^16.0.0
     peerDependenciesMeta:
@@ -1928,7 +1928,7 @@ packages:
       '@nodelib/fs.scandir': 2.1.5
       fastq: 1.17.1
 
-  /@pathfinder-ide/react@0.7.1(@types/react@18.2.61)(graphql@16.8.1)(prettier@3.2.5)(react-dom@18.2.0)(react@18.2.0):
+  /@pathfinder-ide/react@0.7.1(@types/react@18.2.61)(graphql@16.8.1)(prettier@3.3.3)(react-dom@18.2.0)(react@18.2.0):
     resolution: {integrity: sha512-ZaG1eV8TZ8PiDylOp0uLBUvFw60KM7suj+24zZR8/AsXmsKaSlpgHP4VRilPCQHqKhlT3LHcRZDHwwrcv+fJMQ==}
     peerDependencies:
       graphql: '>=16.0.0'
@@ -1940,7 +1940,7 @@ packages:
       idb-keyval: 6.2.1
       lodash: 4.17.21
       monaco-editor: 0.40.0
-      monaco-graphql: 1.3.0(graphql@16.8.1)(monaco-editor@0.40.0)(prettier@3.2.5)
+      monaco-graphql: 1.3.0(graphql@16.8.1)(monaco-editor@0.40.0)(prettier@3.3.3)
       react: 18.2.0
       react-dom: 18.2.0(react@18.2.0)
       react-markdown: 9.0.1(@types/react@18.2.61)(react@18.2.0)
@@ -2515,10 +2515,10 @@ packages:
   /@ungap/structured-clone@1.2.0:
     resolution: {integrity: sha512-zuVdFrMJiuCDQUMCzQaD6KL28MjnqqN8XnAqiEq9PNm/hCPTSGfrXCOfwj1ow4LFb/tNymJPwsNbVePc1xFqrQ==}
 
-  /@urql/core@4.3.0(graphql@16.8.1):
-    resolution: {integrity: sha512-wT+FeL8DG4x5o6RfHEnONNFVDM3616ouzATMYUClB6CB+iIu2mwfBKd7xSUxYOZmwtxna5/hDRQdMl3nbQZlnw==}
+  /@urql/core@5.0.7(graphql@16.8.1):
+    resolution: {integrity: sha512-1uBj2PmHoen3LugD+UHQ4cr/ls8/0e2/sD8YL0u17sXm02cVnV6VY3bC9wi6fl/DCWEO9AUnwv7qZCz6ME3BfA==}
     dependencies:
-      '@0no-co/graphql.web': 1.0.1(graphql@16.8.1)
+      '@0no-co/graphql.web': 1.0.9(graphql@16.8.1)
       wonka: 6.3.4
     transitivePeerDependencies:
       - graphql
@@ -5807,7 +5807,7 @@ packages:
     resolution: {integrity: sha512-1wymccLEuFSMBvCk/jT1YDW/GuxMLYwnFwF9CDyYCxoTw2Pt379J3FUhwy9c43j51JdcxVPjwk0jm0EVDsBS2g==}
     dev: false
 
-  /monaco-graphql@1.3.0(graphql@16.8.1)(monaco-editor@0.40.0)(prettier@3.2.5):
+  /monaco-graphql@1.3.0(graphql@16.8.1)(monaco-editor@0.40.0)(prettier@3.3.3):
     resolution: {integrity: sha512-Ilz7kUKYfO5KGwandjR+eQbN+fj1fQY9OECIQlzgeWOkLXMZqXTsxf01iQfVw08mMsBz7qa6fZKsESouDcBN2g==}
     peerDependencies:
       graphql: ^15.5.0 || ^16.0.0
@@ -5818,7 +5818,7 @@ packages:
       graphql-language-service: 5.2.0(graphql@16.8.1)
       monaco-editor: 0.40.0
       picomatch-browser: 2.2.6
-      prettier: 3.2.5
+      prettier: 3.3.3
     dev: false
 
   /ms@2.1.2:
@@ -6263,6 +6263,13 @@ packages:
     resolution: {integrity: sha512-3/GWa9aOC0YeD7LUfvOG2NiDyhOWRvt1k+rcKhOuYnMY24iiCphgneUfJDyFXd6rZCAnuLBv6UeAULtrhT/F4A==}
     engines: {node: '>=14'}
     hasBin: true
+    dev: true
+
+  /prettier@3.3.3:
+    resolution: {integrity: sha512-i2tDNA0O5IrMO757lfrdQZCc2jPNDVntV0m/+4whiDfWaTKfMNgR7Qz0NAeGz/nRqF4m5/6CLzbP4/liHt12Ew==}
+    engines: {node: '>=14'}
+    hasBin: true
+    dev: false
 
   /pretty-format@29.7.0:
     resolution: {integrity: sha512-Pdlw/oPxN+aXdmM9R00JVC9WVFoCLTKJvDVLgmJ+qAffBMxsV85l/Lu7sNx4zSzPyoL2euImuEwHhOXdEgNFZQ==}
