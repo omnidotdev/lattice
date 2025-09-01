@@ -24,7 +24,7 @@ jobs:
       github-action: ${{ steps.paths-changed.outputs.github-action }}
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           # TODO: Figure out how to not make this zero
           # Seems like if it's not zero you dont get branches
@@ -86,7 +86,7 @@ jobs:
       RUSTFLAGS: '-D warnings'
     steps:
       - name: Get sources
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Dump inputs for debugging
         shell: bash

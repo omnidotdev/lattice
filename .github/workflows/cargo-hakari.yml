@@ -16,7 +16,7 @@ jobs:
 
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Check paths changed
         uses: dorny/paths-filter@v3
@@ -34,7 +34,7 @@ jobs:
     if: needs.what-changed.outputs.cargo == 'true'
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Install cargo-hakari
         uses: taiki-e/install-action@v2
