@@ -23,22 +23,121 @@ pub struct SubgraphConfig {
     pub routing_url: Option<String>,
 }
 
+/// Supported config file formats.
+#[derive(Debug, Clone, Copy)]
+enum ConfigFormat {
+    Json,
+    Jsonc,
+    Yaml,
+}
+
 impl ComposeConfig {
-    /// Load and parse compose config from a YAML file.
+    /// Load and parse compose config from a file.
+    ///
+    /// Supports JSON (.json), JSONC (.jsonc), and YAML (.yaml, .yml) formats.
     ///
     /// # Errors
     ///
     /// Returns an error if the file cannot be read or parsed.
     pub fn load(path: &Path) -> Result<Self, CliError> {
+        let format = Self::detect_format(path)?;
+
         let content = fs::read_to_string(path)
             .map_err(|e| CliError::ReadComposeConfig(path.to_path_buf(), e))?;
 
         // Expand environment variables.
         let content = expand_env_vars(&content)?;
 
-        serde_yaml::from_str(&content)
-            .map_err(|e| CliError::ParseComposeConfig(path.to_path_buf(), e.to_string()))
+        match format {
+            ConfigFormat::Json => serde_json::from_str(&content)
+                .map_err(|e| CliError::ParseComposeConfig(path.to_path_buf(), e.to_string())),
+            ConfigFormat::Jsonc => {
+                let stripped = strip_jsonc_comments(&content);
+                serde_json::from_str(&stripped)
+                    .map_err(|e| CliError::ParseComposeConfig(path.to_path_buf(), e.to_string()))
+            }
+            ConfigFormat::Yaml => serde_yaml::from_str(&content)
+                .map_err(|e| CliError::ParseComposeConfig(path.to_path_buf(), e.to_string())),
+        }
     }
+
+    /// Detect the config format from the file extension.
+    fn detect_format(path: &Path) -> Result<ConfigFormat, CliError> {
+        let ext = path
+            .extension()
+            .and_then(|e| e.to_str())
+            .map(|e| e.to_lowercase());
+
+        match ext.as_deref() {
+            Some("json") => Ok(ConfigFormat::Json),
+            Some("jsonc") => Ok(ConfigFormat::Jsonc),
+            Some("yaml" | "yml") => Ok(ConfigFormat::Yaml),
+            _ => Err(CliError::ParseComposeConfig(
+                path.to_path_buf(),
+                "unsupported file extension (use .json, .jsonc, .yaml, or .yml)".to_string(),
+            )),
+        }
+    }
+}
+
+/// Strip single-line (//) and multi-line (/* */) comments from JSONC content.
+fn strip_jsonc_comments(content: &str) -> String {
+    let mut result = String::with_capacity(content.len());
+    let mut chars = content.chars().peekable();
+    let mut in_string = false;
+    let mut escape_next = false;
+
+    while let Some(c) = chars.next() {
+        if escape_next {
+            result.push(c);
+            escape_next = false;
+            continue;
+        }
+
+        if c == '\\' && in_string {
+            result.push(c);
+            escape_next = true;
+            continue;
+        }
+
+        if c == '"' && !escape_next {
+            in_string = !in_string;
+            result.push(c);
+            continue;
+        }
+
+        if !in_string && c == '/' {
+            if let Some(&next) = chars.peek() {
+                if next == '/' {
+                    // Single-line comment - skip to end of line.
+                    chars.next();
+                    while let Some(&ch) = chars.peek() {
+                        if ch == '\n' {
+                            break;
+                        }
+                        chars.next();
+                    }
+                    continue;
+                } else if next == '*' {
+                    // Multi-line comment - skip to */.
+                    chars.next();
+                    while let Some(ch) = chars.next() {
+                        if ch == '*' {
+                            if let Some(&'/') = chars.peek() {
+                                chars.next();
+                                break;
+                            }
+                        }
+                    }
+                    continue;
+                }
+            }
+        }
+
+        result.push(c);
+    }
+
+    result
 }
 
 impl SubgraphConfig {
