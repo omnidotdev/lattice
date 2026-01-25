@@ -71,10 +71,10 @@ grafbase-workspace-hack.path = "workspace-hack"
 [workspace.package]
 version = "0.80.0"
 edition = "2021"
-license = "Apache-2.0"
-homepage = "https://grafbase.com"
-keywords = ["grafbase"]
-repository = "https://github.com/grafbase/grafbase"
+license = "MPL-2.0"
+homepage = "https://lattice.omni.dev"
+keywords = ["lattice", "graphql", "federation", "gateway"]
+repository = "https://github.com/omnidotdev/lattice"
 
 [workspace.dependencies]
 anyhow = "1"

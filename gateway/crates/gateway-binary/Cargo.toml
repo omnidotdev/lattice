@@ -1,11 +1,14 @@
 [package]
-name = "grafbase-gateway"
-version = "0.16.0"
+name = "lattice-gateway"
+version.workspace = true
 edition.workspace = true
-license = "MPL-2.0"
+license.workspace = true
 homepage.workspace = true
-keywords.workspace = true
 repository.workspace = true
+
+[[bin]]
+name = "lattice-gateway"
+path = "src/main.rs"
 
 [features]
 lambda = [

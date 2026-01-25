@@ -1,13 +1,12 @@
 [package]
-name = "grafbase"
-description = "The Grafbase command line interface"
+name = "lattice-cli"
+description = "The Lattice command line interface"
 categories = ["command-line-utilities"]
 readme = "README.md"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 homepage.workspace = true
-keywords.workspace = true
 repository.workspace = true
 
 [dependencies]
@@ -100,7 +99,8 @@ which.workspace = true
 wiremock.workspace = true
 
 [[bin]]
-name = "grafbase"
+name = "lattice"
+path = "src/main.rs"
 
 [features]
 default = []
