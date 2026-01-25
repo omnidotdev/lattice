@@ -118,6 +118,8 @@ fn try_main(args: Args) -> Result<(), CliError> {
             BranchSubCommand::Delete(cmd) => branch::delete(cmd.branch_ref),
             BranchSubCommand::Create(cmd) => branch::create(cmd.branch_ref),
         },
+        // TODO: Wire up compose command handler.
+        SubCommand::Compose(_cmd) => todo!("compose command not yet implemented"),
     }
 }
 

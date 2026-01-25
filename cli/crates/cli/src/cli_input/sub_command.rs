@@ -3,8 +3,8 @@ use clap::Parser;
 use crate::is_not_direct_install;
 
 use super::{
-    branch::BranchCommand, trust::TrustCommand, ArgumentNames, CheckCommand, CompletionsCommand, CreateCommand,
-    IntrospectCommand, LintCommand, PublishCommand, SchemaCommand, SubgraphsCommand,
+    branch::BranchCommand, trust::TrustCommand, ArgumentNames, CheckCommand, CompletionsCommand, ComposeCommand,
+    CreateCommand, IntrospectCommand, LintCommand, PublishCommand, SchemaCommand, SubgraphsCommand,
 };
 
 #[derive(Debug, Parser, strum::AsRefStr, strum::Display)]
@@ -38,6 +38,8 @@ pub enum SubCommand {
     Upgrade,
     /// Lint a GraphQL schema
     Lint(LintCommand),
+    /// Compose subgraph schemas into a federated supergraph
+    Compose(ComposeCommand),
 }
 
 impl ArgumentNames for SubCommand {
@@ -55,7 +57,8 @@ impl ArgumentNames for SubCommand {
             | SubCommand::Completions(_)
             | SubCommand::Trust(_)
             | SubCommand::Upgrade
-            | SubCommand::Lint(_) => None,
+            | SubCommand::Lint(_)
+            | SubCommand::Compose(_) => None,
         }
     }
 }
