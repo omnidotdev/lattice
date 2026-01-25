@@ -1,6 +1,6 @@
 use tokio::sync::{mpsc, watch};
 
-/// The Grafbase gateway error type
+/// The Lattice gateway error type
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     #[error("Error validating federated SDL: {0}")]

@@ -16,7 +16,7 @@ mod args;
 mod server_runtime;
 mod telemetry;
 
-const THREAD_NAME: &str = "grafbase-gateway";
+const THREAD_NAME: &str = "lattice-gateway";
 
 fn main() -> anyhow::Result<()> {
     #[cfg(feature = "pprof")]
@@ -64,7 +64,7 @@ fn gateway_main() -> anyhow::Result<()> {
         let telemetry = telemetry::init(&args, &config.telemetry)?;
 
         let crate_version = crate_version!();
-        tracing::info!("Grafbase Gateway {crate_version}");
+        tracing::info!("Lattice Gateway {crate_version}");
 
         let config = ServerConfig {
             listen_addr: args.listen_address(),
