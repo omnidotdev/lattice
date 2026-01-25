@@ -51,6 +51,7 @@ graphql-lint.workspace = true
 graph-ref = { path = "../../../graph-ref" }
 grafbase-workspace-hack.workspace = true
 graphql-composition.workspace = true
+regex = "1"
 serde_yaml = "0.9"
 
 [dev-dependencies]

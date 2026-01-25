@@ -2,13 +2,11 @@
 #![forbid(unsafe_code)]
 
 use grafbase_workspace_hack as _;
-// TODO: Remove these placeholder uses once the compose command is wired up.
-use graphql_composition as _;
-use serde_yaml as _;
 
 mod branch;
 mod check;
 mod cli_input;
+mod compose;
 mod create;
 mod errors;
 mod introspect;
@@ -118,8 +116,7 @@ fn try_main(args: Args) -> Result<(), CliError> {
             BranchSubCommand::Delete(cmd) => branch::delete(cmd.branch_ref),
             BranchSubCommand::Create(cmd) => branch::create(cmd.branch_ref),
         },
-        // TODO: Wire up compose command handler.
-        SubCommand::Compose(_cmd) => todo!("compose command not yet implemented"),
+        SubCommand::Compose(cmd) => compose::compose_command(cmd),
     }
 }
 
