@@ -15,9 +15,9 @@ pub enum SubCommand {
     /// Output completions for the chosen shell to use, write the output to the
     /// appropriate location for your shell
     Completions(CompletionsCommand),
-    /// Logs into your Grafbase account
+    /// Logs into your Lattice account
     Login,
-    /// Logs out of your Grafbase account
+    /// Logs out of your Lattice account
     Logout,
     /// Set up and deploy a new graph
     Create(CreateCommand),
@@ -33,7 +33,7 @@ pub enum SubCommand {
     Check(CheckCommand),
     /// Submit a trusted documents manifest
     Trust(TrustCommand),
-    /// Upgrade the installed version of the Grafbase CLI
+    /// Upgrade the installed version of the Lattice CLI
     #[clap(hide=is_not_direct_install())]
     Upgrade,
     /// Lint a GraphQL schema

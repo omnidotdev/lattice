@@ -44,7 +44,7 @@ pub enum CliError {
     #[error(transparent)]
     UpgradeError(#[from] UpgradeError),
     /// returned if the CLI was installed via a package manager and not directly (when trying to upgrade)
-    #[error("could not upgrade grafbase as it was installed using a package manager")]
+    #[error("could not upgrade lattice as it was installed using a package manager")]
     NotDirectInstall,
     #[error(transparent)]
     LintInvalidSchema(#[from] graphql_lint::LinterError),
@@ -64,25 +64,25 @@ impl CliError {
     pub fn to_hint(&self) -> Option<String> {
         match self {
             Self::CommonError(CommonError::FindGrafbaseDirectory) => {
-                Some("try running the CLI in your Grafbase project or any nested directory".to_owned())
+                Some("try running the CLI in your Lattice project or any nested directory".to_owned())
             }
             Self::BackendApiError(
                 ApiError::RequestError(_)
                 | ApiError::CreateError(CreateError::Unknown(_))
                 | ApiError::PublishError(PublishError::Unknown(_)),
-            ) => Some("you may be using an older version of the Grafbase CLI, try updating".to_owned()),
+            ) => Some("you may be using an older version of the Lattice CLI, try updating".to_owned()),
             Self::BackendApiError(ApiError::NotLoggedIn | ApiError::CorruptCredentialsFile) => {
-                Some("try running 'grafbase login'".to_owned())
+                Some("try running 'lattice login'".to_owned())
             }
-            Self::BackendApiError(ApiError::ProjectAlreadyLinked) => Some("try running 'grafbase deploy'".to_owned()),
+            Self::BackendApiError(ApiError::ProjectAlreadyLinked) => Some("try running 'lattice deploy'".to_owned()),
             Self::BackendApiError(ApiError::CorruptProjectMetadataFile | ApiError::UnlinkedProject) => {
-                Some("try running 'grafbase link'".to_owned())
+                Some("try running 'lattice link'".to_owned())
             }
             Self::UpgradeError(UpgradeError::StartDownload | UpgradeError::StartGetLatestReleaseVersion) => {
                 Some("this may be caused by connection issues".to_owned())
             }
             Self::NotDirectInstall => {
-                Some("try upgrading via your original install method or installing grafbase directly".to_owned())
+                Some("try upgrading via your original install method or installing lattice directly".to_owned())
             }
             Self::LintUnsupportedFileExtension(_) | Self::LintNoExtension => Some(
                 "try passing a file with a supported extension: '.gql', '.graphql', '.graphqls' or '.sdl'".to_owned(),
