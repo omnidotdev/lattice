@@ -1,0 +1,12 @@
+# Omni Federation Compose Config
+# Composes Aether (billing) and Warden (authz) into a federated supergraph
+
+subgraphs:
+  aether:
+    url: ${AETHER_GRAPHQL_URL}
+  warden:
+    url: ${WARDEN_GRAPHQL_URL}
+
+# Optional: Headers for introspection requests
+# headers:
+#   Authorization: "Bearer ${SUBGRAPH_TOKEN}"

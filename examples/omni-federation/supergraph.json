@@ -1,0 +1,10 @@
+{
+  "subgraphs": {
+    "aether": {
+      "url": "${AETHER_GRAPHQL_URL}"
+    },
+    "warden": {
+      "url": "${WARDEN_GRAPHQL_URL}"
+    }
+  }
+}
