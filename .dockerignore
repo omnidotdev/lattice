@@ -2,7 +2,7 @@
 .gitignore
 .github
 .git
-.cargo/bin
+.cargo/
 Dockerfile
 node_modules
 templates

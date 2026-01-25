@@ -1,4 +1,4 @@
-//! Implements the self-hosted Grafbase gateway. It can run in a hybrid mode,
+//! Implements the self-hosted Lattice gateway. It can run in a hybrid mode,
 //! where we contact the schema registry in the API to fetch the latest schema
 //! and send tracing and metrics to either our own or a 3rd party collector.
 

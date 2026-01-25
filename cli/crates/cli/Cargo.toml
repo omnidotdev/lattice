@@ -1,13 +1,12 @@
 [package]
-name = "grafbase"
-description = "The Grafbase command line interface"
+name = "lattice-cli"
+description = "The Lattice command line interface"
 categories = ["command-line-utilities"]
 readme = "README.md"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 homepage.workspace = true
-keywords.workspace = true
 repository.workspace = true
 
 [dependencies]
@@ -36,7 +35,7 @@ serde_derive = "1.0.199"
 serde_json.workspace = true
 slugify = "0.1.0"
 strum = { version = "0.26.2", features = ["derive"] }
-syntect = "5.2.0"
+syntect = { version = "5.2.0", default-features = false, features = ["default-syntaxes", "default-themes", "regex-fancy", "parsing", "dump-load", "dump-create", "html", "yaml-load"] }
 thiserror = "1.0.59"
 tokio = { version = "1.37.0", features = ["full"] }
 tokio-util = { version = "0.7.10", features = ["futures-io", "compat"] }
@@ -100,7 +99,8 @@ which.workspace = true
 wiremock.workspace = true
 
 [[bin]]
-name = "grafbase"
+name = "lattice"
+path = "src/main.rs"
 
 [features]
 default = []

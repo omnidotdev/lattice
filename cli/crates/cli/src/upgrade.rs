@@ -27,10 +27,10 @@ pub enum UpgradeError {
     #[error("Could not create path '{0}' for the CLI installation\nCaused by:{0}")]
     CreateDir(PathBuf, io::Error),
 
-    #[error("Encountered an error while downloading grafbase")]
+    #[error("Encountered an error while downloading lattice")]
     StartDownload,
 
-    #[error("Encountered an error while downloading grafbase")]
+    #[error("Encountered an error while downloading lattice")]
     Download,
 
     #[error("Could not rename a temporary download file.\nCaused by: {0}")]
@@ -50,10 +50,10 @@ pub enum UpgradeError {
     #[error(transparent)]
     SpawnedTaskPanic(#[from] JoinError),
 
-    #[error("Encountered an error while determining the latest release version of grafbase")]
+    #[error("Encountered an error while determining the latest release version of lattice")]
     GetLatestReleaseVersion,
 
-    #[error("Encountered an error while determining the installed version of grafbase")]
+    #[error("Encountered an error while determining the installed version of lattice")]
     GetInstalledVersion,
 
     #[error("Encountered an error while determining the latest release version")]
@@ -67,12 +67,12 @@ struct NpmPackageInfo {
 
 const BINARY_SUFFIX: &str = if cfg!(windows) { ".exe" } else { "" };
 const TARGET: &str = env!("TARGET");
-const DOWNLOAD_URL_PREFIX: &str = "https://github.com/grafbase/grafbase/releases/download/grafbase-";
-const LATEST_RELEASE_API_URL: &str = "https://registry.npmjs.org/grafbase/latest";
+const DOWNLOAD_URL_PREFIX: &str = "https://github.com/omnidotdev/lattice/releases/download/lattice-";
+const LATEST_RELEASE_API_URL: &str = "https://registry.npmjs.org/@omnidotdev/lattice/latest";
 #[cfg(unix)]
-const GRAFBASE_EXECUTABLE_PERMISSIONS: u32 = 0o755;
-const GRAFBASE_INSTALL_LOCK_FILE: &str = ".grafbase.install.lock";
-const PARTIAL_DOWNLOAD_FILE: &str = ".grafbase.partial";
+const LATTICE_EXECUTABLE_PERMISSIONS: u32 = 0o755;
+const LATTICE_INSTALL_LOCK_FILE: &str = ".lattice.install.lock";
+const PARTIAL_DOWNLOAD_FILE: &str = ".lattice.partial";
 
 #[tokio::main]
 pub(crate) async fn install_grafbase() -> Result<(), UpgradeError> {
@@ -80,7 +80,7 @@ pub(crate) async fn install_grafbase() -> Result<(), UpgradeError> {
     let lock_file_path = direct_install_executable_path
         .parent()
         .expect("must exist")
-        .join(GRAFBASE_INSTALL_LOCK_FILE);
+        .join(LATTICE_INSTALL_LOCK_FILE);
     let mut lock_file = task::spawn_blocking(move || {
         let mut file = LockFile::open(&lock_file_path)?;
         file.lock()?;
@@ -104,7 +104,7 @@ pub(crate) async fn install_grafbase() -> Result<(), UpgradeError> {
     // TODO: use a real progress bar here
     let spinner = ProgressBar::new_spinner()
         .with_message(format!(
-            "Downloading grafbase-{TARGET}{BINARY_SUFFIX} {latest_version}..."
+            "Downloading lattice-{TARGET}{BINARY_SUFFIX} {latest_version}..."
         ))
         .with_style(
             ProgressStyle::with_template("{spinner} {wide_msg}")
@@ -120,7 +120,7 @@ pub(crate) async fn install_grafbase() -> Result<(), UpgradeError> {
         .await?
         .map_err(UpgradeError::Unlock)?;
 
-    spinner.finish_with_message(format!("Successfully installed grafbase {latest_version}!"));
+    spinner.finish_with_message(format!("Successfully installed lattice {latest_version}!"));
 
     Ok(())
 }
@@ -130,7 +130,7 @@ async fn download_grafbase(
     client: Client,
     latest_version: &str,
 ) -> Result<(), UpgradeError> {
-    trace!("Installing grafbase…");
+    trace!("Installing lattice…");
 
     let direct_install_path = direct_install_executable_path.parent().expect("must exist");
 
@@ -138,9 +138,9 @@ async fn download_grafbase(
         .await
         .map_err(|error| UpgradeError::CreateDir(direct_install_path.to_owned(), error))?;
 
-    let grafbase_temp_binary_path = direct_install_path.join(PARTIAL_DOWNLOAD_FILE);
+    let lattice_temp_binary_path = direct_install_path.join(PARTIAL_DOWNLOAD_FILE);
 
-    let download_url = format!("{DOWNLOAD_URL_PREFIX}{latest_version}/grafbase-{TARGET}{BINARY_SUFFIX}");
+    let download_url = format!("{DOWNLOAD_URL_PREFIX}{latest_version}/lattice-{TARGET}{BINARY_SUFFIX}");
 
     let binary_response = client
         .get(download_url)
@@ -157,7 +157,7 @@ async fn download_grafbase(
         .map(|result| result.map_err(|error| io::Error::new(io::ErrorKind::Other, error)));
 
     let mut temp_binary_file = BufWriter::new(
-        File::create(&grafbase_temp_binary_path)
+        File::create(&lattice_temp_binary_path)
             .await
             .map_err(UpgradeError::CreateTemporaryFile)?,
     );
@@ -174,15 +174,15 @@ async fn download_grafbase(
         use std::os::unix::fs::PermissionsExt;
 
         fs::set_permissions(
-            &grafbase_temp_binary_path,
-            Permissions::from_mode(GRAFBASE_EXECUTABLE_PERMISSIONS),
+            &lattice_temp_binary_path,
+            Permissions::from_mode(LATTICE_EXECUTABLE_PERMISSIONS),
         )
         .await
         .map_err(UpgradeError::SetExecutablePermissions)?;
     }
 
     // this is done last to prevent leaving the user without a working binary if something errors
-    fs::rename(&grafbase_temp_binary_path, &direct_install_executable_path)
+    fs::rename(&lattice_temp_binary_path, &direct_install_executable_path)
         .await
         .map_err(UpgradeError::RenameTemporaryFile)?;
 
@@ -218,7 +218,7 @@ async fn get_currently_installed_version(path: &PathBuf) -> Result<String, Upgra
             .stdout,
     )
     .map_err(|_| UpgradeError::GetInstalledVersion)?
-    .trim_start_matches("Grafbase CLI")
+    .trim_start_matches("Lattice CLI")
     .trim()
     .to_owned())
 }

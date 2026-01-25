@@ -43,8 +43,8 @@ fn split_header(header: &str) -> Option<(&str, &str)> {
 }
 
 #[derive(Debug, Parser)]
-#[command(name = "Grafbase CLI", version)]
-/// The Grafbase command line interface
+#[command(name = "Lattice CLI", version)]
+/// The Lattice command line interface
 pub struct Args {
     /// Set the tracing level
     #[arg(short, long, default_value_t = 0)]

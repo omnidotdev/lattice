@@ -39,7 +39,7 @@ impl Shell {
         clap_complete::generate(
             generator,
             &mut super::Args::command(),
-            "grafbase",
+            "lattice",
             &mut std::io::stdout(),
         );
     }

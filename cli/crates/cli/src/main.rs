@@ -123,5 +123,5 @@ pub(crate) fn is_not_direct_install() -> bool {
 }
 
 pub(crate) fn direct_install_executable_path() -> Option<PathBuf> {
-    dirs::home_dir().map(|home| home.join(".grafbase").join("bin").join("grafbase"))
+    dirs::home_dir().map(|home| home.join(".lattice").join("bin").join("lattice"))
 }

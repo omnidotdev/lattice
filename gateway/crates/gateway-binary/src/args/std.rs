@@ -26,8 +26,8 @@ use super::{log::LogStyle, LogLevel};
             .args(["graph_ref"])
     )
 )]
-#[command(name = "Grafbase Gateway", version)]
-/// Grafbase Gateway
+#[command(name = "Lattice Gateway", version)]
+/// Lattice Gateway
 pub struct Args {
     /// IP address on which the server will listen for incomming connections. Defaults to 127.0.0.1:5000.
     #[arg(short, long)]

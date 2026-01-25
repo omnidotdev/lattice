@@ -35,10 +35,10 @@ macro_rules! panic_hook {
         #[allow(unused_variables)]
         let meta = Metadata {
             version: env!("CARGO_PKG_VERSION").into(),
-            name: "the Grafbase CLI".into(),
+            name: "the Lattice CLI".into(),
             homepage: env!("CARGO_PKG_HOMEPAGE").into(),
-            repository: "https://github.com/grafbase/grafbase".into(),
-            discord: "https://discord.gg/grafbase".into(),
+            repository: "https://github.com/omnidotdev/lattice".into(),
+            discord: "https://discord.gg/omni".into(),
         };
 
         #[cfg(not(debug_assertions))]

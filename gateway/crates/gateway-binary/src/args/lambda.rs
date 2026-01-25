@@ -12,8 +12,8 @@ use gateway_config::Config;
 use super::{log::LogStyle, LogLevel};
 
 #[derive(Debug, Parser)]
-#[command(name = "Grafbase Lambda Gateway", version)]
-/// Grafbase Lambda Gateway
+#[command(name = "Lattice Lambda Gateway", version)]
+/// Lattice Lambda Gateway
 pub struct Args {
     /// Path to the TOML configuration file
     #[arg(env = "GRAFBASE_CONFIG_PATH", default_value = "./grafbase.toml")]

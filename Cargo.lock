@@ -1850,7 +1850,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a560b3fd20463b56397bd457aa71243ccfdcffe696050b66e3b1e0ec0457e7f1"
 dependencies = [
  "camino",
- "fancy-regex",
+ "fancy-regex 0.13.0",
  "libtest-mimic",
  "walkdir",
 ]
@@ -2707,6 +2707,16 @@ checksum = "2acce4a10f12dc2fb14a218589d4f1f62ef011b2d0cc4b3cb1bba8e94da14649"
 
 [[package]]
 name = "fancy-regex"
+version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b95f7c0680e4142284cf8b22c14a476e87d61b004a3a0861872b32ef7ead40a2"
+dependencies = [
+ "bit-set",
+ "regex",
+]
+
+[[package]]
+name = "fancy-regex"
 version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "531e46835a22af56d1e3b66f04844bed63158bc094a628bec1d321d9b4c44bf2"
@@ -3318,128 +3328,6 @@ dependencies = [
  "grafbase-workspace-hack",
  "graphql-lint",
  "thiserror",
-]
-
-[[package]]
-name = "grafbase"
-version = "0.80.0"
-dependencies = [
- "assert_matches",
- "async-graphql",
- "async-graphql-axum",
- "async-trait",
- "async-tungstenite",
- "axum",
- "backtrace",
- "cfg-if",
- "chrono",
- "clap",
- "clap_complete",
- "colored",
- "ctor",
- "cynic",
- "cynic-introspection",
- "derive_builder",
- "dirs",
- "duct",
- "fslock",
- "futures-util",
- "grafbase-graphql-introspection",
- "grafbase-local-backend",
- "grafbase-local-common",
- "grafbase-workspace-hack",
- "graph-ref",
- "graphql-lint",
- "graphql-mocks",
- "graphql-ws-client",
- "headers",
- "hex",
- "http",
- "indicatif",
- "indoc",
- "inquire",
- "insta",
- "json_dotpath",
- "jwt-compact",
- "log",
- "mimalloc",
- "more-asserts",
- "multipart-stream",
- "os_type",
- "rand 0.8.5",
- "regex",
- "reqwest",
- "reqwest-eventsource",
- "rsa",
- "rstest",
- "rstest_reuse",
- "rustls 0.23.15",
- "serde",
- "serde_derive",
- "serde_json",
- "sha2",
- "slugify",
- "strum",
- "syntect",
- "sysinfo",
- "tempfile",
- "thiserror",
- "tokio",
- "tokio-util",
- "tower-http",
- "tracing-subscriber",
- "url",
- "uuid",
- "webbrowser",
- "which 6.0.3",
- "wiremock",
-]
-
-[[package]]
-name = "grafbase-gateway"
-version = "0.16.0"
-dependencies = [
- "anyhow",
- "ascii 1.1.0",
- "async-graphql-parser",
- "atty",
- "cfg-if",
- "chrono",
- "clap",
- "clickhouse",
- "ctor",
- "duct",
- "federated-server",
- "fslock",
- "futures-util",
- "gateway-config",
- "grafbase-graphql-introspection",
- "grafbase-telemetry",
- "grafbase-workspace-hack",
- "graph-ref",
- "graphql-composition",
- "graphql-mocks",
- "handlebars",
- "http",
- "indoc",
- "insta",
- "itertools 0.13.0",
- "mimalloc",
- "opentelemetry-aws",
- "pprof",
- "rand 0.8.5",
- "reqwest",
- "rustls 0.23.15",
- "serde",
- "serde_json",
- "serde_with",
- "tempfile",
- "tokio",
- "toml",
- "tracing",
- "tracing-subscriber",
- "ulid",
- "wiremock",
 ]
 
 [[package]]
@@ -4368,7 +4256,7 @@ dependencies = [
  "log",
  "num-format",
  "once_cell",
- "quick-xml 0.26.0",
+ "quick-xml",
  "rgb",
  "str_stack",
 ]
@@ -4851,6 +4739,128 @@ checksum = "a030549b8dfea08d7981ad0381acb4bc0cdc7a4fd616e3b9659c31dc0a3474fd"
 dependencies = [
  "hashbrown 0.14.5",
  "serde",
+]
+
+[[package]]
+name = "lattice-cli"
+version = "0.80.0"
+dependencies = [
+ "assert_matches",
+ "async-graphql",
+ "async-graphql-axum",
+ "async-trait",
+ "async-tungstenite",
+ "axum",
+ "backtrace",
+ "cfg-if",
+ "chrono",
+ "clap",
+ "clap_complete",
+ "colored",
+ "ctor",
+ "cynic",
+ "cynic-introspection",
+ "derive_builder",
+ "dirs",
+ "duct",
+ "fslock",
+ "futures-util",
+ "grafbase-graphql-introspection",
+ "grafbase-local-backend",
+ "grafbase-local-common",
+ "grafbase-workspace-hack",
+ "graph-ref",
+ "graphql-lint",
+ "graphql-mocks",
+ "graphql-ws-client",
+ "headers",
+ "hex",
+ "http",
+ "indicatif",
+ "indoc",
+ "inquire",
+ "insta",
+ "json_dotpath",
+ "jwt-compact",
+ "log",
+ "mimalloc",
+ "more-asserts",
+ "multipart-stream",
+ "os_type",
+ "rand 0.8.5",
+ "regex",
+ "reqwest",
+ "reqwest-eventsource",
+ "rsa",
+ "rstest",
+ "rstest_reuse",
+ "rustls 0.23.15",
+ "serde",
+ "serde_derive",
+ "serde_json",
+ "sha2",
+ "slugify",
+ "strum",
+ "syntect",
+ "sysinfo",
+ "tempfile",
+ "thiserror",
+ "tokio",
+ "tokio-util",
+ "tower-http",
+ "tracing-subscriber",
+ "url",
+ "uuid",
+ "webbrowser",
+ "which 6.0.3",
+ "wiremock",
+]
+
+[[package]]
+name = "lattice-gateway"
+version = "0.80.0"
+dependencies = [
+ "anyhow",
+ "ascii 1.1.0",
+ "async-graphql-parser",
+ "atty",
+ "cfg-if",
+ "chrono",
+ "clap",
+ "clickhouse",
+ "ctor",
+ "duct",
+ "federated-server",
+ "fslock",
+ "futures-util",
+ "gateway-config",
+ "grafbase-graphql-introspection",
+ "grafbase-telemetry",
+ "grafbase-workspace-hack",
+ "graph-ref",
+ "graphql-composition",
+ "graphql-mocks",
+ "handlebars",
+ "http",
+ "indoc",
+ "insta",
+ "itertools 0.13.0",
+ "mimalloc",
+ "opentelemetry-aws",
+ "pprof",
+ "rand 0.8.5",
+ "reqwest",
+ "rustls 0.23.15",
+ "serde",
+ "serde_json",
+ "serde_with",
+ "tempfile",
+ "tokio",
+ "toml",
+ "tracing",
+ "tracing-subscriber",
+ "ulid",
+ "wiremock",
 ]
 
 [[package]]
@@ -5496,28 +5506,6 @@ name = "once_cell"
 version = "1.20.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1261fe7e33c73b354eab43b1273a57c8f967d0391e80353e51f764ac02cf6775"
-
-[[package]]
-name = "onig"
-version = "6.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8c4b31c8722ad9171c6d77d3557db078cab2bd50afcc9d09c8b315c59df8ca4f"
-dependencies = [
- "bitflags 1.3.2",
- "libc",
- "once_cell",
- "onig_sys",
-]
-
-[[package]]
-name = "onig_sys"
-version = "69.8.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7b829e3d7e9cc74c7e315ee8edb185bf4190da5acde74afd7fc59c35b1f086e7"
-dependencies = [
- "cc",
- "pkg-config",
-]
 
 [[package]]
 name = "oorandom"
@@ -6188,19 +6176,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "953ec861398dccce10c670dfeaf3ec4911ca479e9c02154b3a215178c5f566f2"
 
 [[package]]
-name = "plist"
-version = "1.7.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "42cf17e9a1800f5f396bc67d193dc9411b59012a5876445ef450d449881e1016"
-dependencies = [
- "base64 0.22.1",
- "indexmap 2.6.0",
- "quick-xml 0.32.0",
- "serde",
- "time",
-]
-
-[[package]]
 name = "plotters"
 version = "0.3.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6559,15 +6534,6 @@ name = "quick-xml"
 version = "0.26.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7f50b1c63b38611e7d4d7f68b82d3ad0cc71a2ad2e7f61fc10f1328d917c93cd"
-dependencies = [
- "memchr",
-]
-
-[[package]]
-name = "quick-xml"
-version = "0.32.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1d3a6e5838b60e0e8fa7a43f22ade549a37d61f8bdbe636d0d7816191de969c2"
 dependencies = [
  "memchr",
 ]
@@ -8229,11 +8195,10 @@ checksum = "874dcfa363995604333cf947ae9f751ca3af4522c60886774c4963943b4746b1"
 dependencies = [
  "bincode",
  "bitflags 1.3.2",
+ "fancy-regex 0.11.0",
  "flate2",
  "fnv",
  "once_cell",
- "onig",
- "plist",
  "regex-syntax 0.8.5",
  "serde",
  "serde_derive",
