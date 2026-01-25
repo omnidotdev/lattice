@@ -3,6 +3,7 @@ mod branch;
 mod branch_ref;
 mod check;
 mod completions;
+mod compose;
 mod create;
 mod federated_graph;
 mod graph_ref_no_branch;
@@ -17,6 +18,7 @@ mod trust;
 
 pub(crate) use self::{check::CheckCommand, trust::TrustCommand};
 pub(crate) use argument_names::ArgumentNames;
+pub(crate) use compose::ComposeCommand;
 pub(crate) use branch::BranchSubCommand;
 pub(crate) use branch_ref::BranchRef;
 pub(crate) use completions::CompletionsCommand;

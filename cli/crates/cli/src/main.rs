@@ -2,6 +2,9 @@
 #![forbid(unsafe_code)]
 
 use grafbase_workspace_hack as _;
+// TODO: Remove these placeholder uses once the compose command is wired up.
+use graphql_composition as _;
+use serde_yaml as _;
 
 mod branch;
 mod check;
