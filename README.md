@@ -1,23 +1,29 @@
-<p align="center">
-  <a href="https://grafbase.com">
-    <img alt="Grafbase logo" src="https://github.com/grafbase/grafbase/assets/14347895/9580d0f7-d50f-4d30-8dd0-dcea1a83409e" width="1000">
-    <h3 align="center">Grafbase</h3>
-  </a>
-</p>
+# Lattice
 
-<p align="center">
-  The GraphQL Federation platform
-</p>
+Omni's GraphQL federation gateway - a fork of [Grafbase](https://github.com/grafbase/grafbase) preserving standalone graph capabilities, TypeScript resolvers, and native data source connectors.
 
-<p align="center">
-  <a href="/examples"><strong>Examples</strong></a> ·
-  <a href="https://grafbase.com/docs"><strong>Docs</strong></a> ·
-  <a href="https://grafbase.com/cli"><strong>CLI</strong></a> ·
-  <a href="https://grafbase.com/docs/self-hosted-gateway"><strong>Gateway</strong></a> ·
-  <a href="https://grafbase.com/community"><strong>Community</stong></a> ·
-  <a href="https://grafbase.com/changelog"><strong>Changelog</strong></a>
-</p>
+## Quick Start
 
-<p align="center">
-  Compose all your data sources into a unified graph. Move faster without breaking things using advanced governance and analytics features.
-</p>
+```bash
+# Build
+cargo build --release -p lattice-gateway
+
+# Run with config
+./target/release/lattice-gateway --config path/to/lattice.config.ts
+```
+
+## Docker
+
+```bash
+docker pull ghcr.io/omnidotdev/lattice:latest
+docker run -p 4000:4000 ghcr.io/omnidotdev/lattice:latest
+```
+
+## Documentation
+
+- [Phase 1 MVP Plan](/docs/plans/2026-01-25-lattice-phase1-mvp.md)
+- [Omni Federation Example](/examples/omni-federation/)
+
+## License
+
+MPL-2.0 (inherited from Grafbase)
