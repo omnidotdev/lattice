@@ -57,6 +57,24 @@ pub enum CliError {
     /// returned if an unsupported extension is passed to lint
     #[error("attempted to lint a file with an unsupported extension: '{0}'")]
     LintUnsupportedFileExtension(String),
+    /// Returned if the compose config file could not be read
+    #[error("could not read compose config '{0}'\nCaused by: {1}")]
+    ReadComposeConfig(PathBuf, io::Error),
+    /// Returned if the compose config file could not be parsed
+    #[error("could not parse compose config '{0}'\nCaused by: {1}")]
+    ParseComposeConfig(PathBuf, String),
+    /// Returned if a subgraph schema file could not be read
+    #[error("could not read subgraph schema '{0}'\nCaused by: {1}")]
+    ReadSubgraphSchema(PathBuf, io::Error),
+    /// Returned if composition failed
+    #[error("composition failed:\n{0}")]
+    CompositionFailed(String),
+    /// Returned if output file could not be written
+    #[error("could not write output file '{0}'\nCaused by: {1}")]
+    WriteComposeOutput(PathBuf, io::Error),
+    /// Returned if environment variable is not set
+    #[error("environment variable '{0}' is not set")]
+    EnvVarNotSet(String),
 }
 
 impl CliError {
