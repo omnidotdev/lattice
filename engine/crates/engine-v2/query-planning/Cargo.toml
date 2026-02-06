@@ -4,7 +4,7 @@ description = "Query planning"
 edition = "2021"
 homepage = "https://grafbase.com"
 keywords = ["graphql", "engine", "grafbase"]
-license = "MPL-2.0"
+license = "MIT"
 name = "engine-v2-query-planning"
 repository = "https://github.com/grafbase/grafbase"
 
@@ -12,7 +12,6 @@ repository = "https://github.com/grafbase/grafbase"
 workspace = true
 
 [dependencies]
-grafbase-workspace-hack.workspace = true
 id-newtypes = { path = "../id-newtypes", package = "engine-v2-id-newtypes" }
 id-derives = { path = "../id-derives", package = "engine-v2-id-derives" }
 walker = { path = "../walker", package = "engine-v2-walker" }

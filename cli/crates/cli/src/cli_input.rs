@@ -1,38 +1,16 @@
-mod argument_names;
-mod branch;
-mod branch_ref;
-mod check;
 mod completions;
 mod compose;
-mod create;
-mod federated_graph;
-mod graph_ref_no_branch;
 mod introspect;
 mod lint;
-mod project_ref;
-mod publish;
-mod schema;
 mod sub_command;
-mod subgraphs;
-mod trust;
 
-pub(crate) use self::{check::CheckCommand, trust::TrustCommand};
-pub(crate) use argument_names::ArgumentNames;
 pub(crate) use compose::ComposeCommand;
-pub(crate) use branch::BranchSubCommand;
-pub(crate) use branch_ref::BranchRef;
 pub(crate) use completions::CompletionsCommand;
-pub(crate) use create::CreateCommand;
 pub(crate) use introspect::IntrospectCommand;
 pub(crate) use lint::LintCommand;
-pub(crate) use project_ref::{ProjectRef, ProjectRefOrGraphRef};
-pub(crate) use publish::PublishCommand;
-pub(crate) use schema::SchemaCommand;
 pub(crate) use sub_command::SubCommand;
-pub(crate) use subgraphs::SubgraphsCommand;
 
 use clap::Parser;
-use common::consts::TRACE_LOG_FILTER;
 use std::path::PathBuf;
 
 fn split_header(header: &str) -> Option<(&str, &str)> {
@@ -65,7 +43,7 @@ impl Args {
         if let Some(custom_trace) = &self.custom_trace_filter {
             Some(custom_trace.as_str())
         } else if self.trace >= 1 {
-            Some(TRACE_LOG_FILTER)
+            Some("lattice=trace")
         } else {
             None
         }

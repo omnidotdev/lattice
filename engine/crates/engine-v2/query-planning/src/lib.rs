@@ -1,4 +1,3 @@
-use grafbase_workspace_hack as _;
 use id_derives as _;
 use id_newtypes as _;
 use serde as _;

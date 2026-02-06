@@ -6,7 +6,6 @@ use std::{
 use gateway_v2_auth_config::v1::AuthConfig;
 use ids::{MetaDirectiveId, MetaFieldId, MetaTypeId, StringId};
 use indexmap::IndexSet;
-use postgres_connector_types::database_definition::DatabaseDefinition;
 
 mod codegen;
 mod common;
@@ -94,7 +93,6 @@ pub struct Registry {
     pub auth: AuthConfig,
     pub mongodb_configurations: HashMap<String, MongoDBConfiguration>,
     pub http_headers: BTreeMap<String, ConnectorHeaders>,
-    pub postgres_databases: HashMap<String, DatabaseDefinition>,
     pub enable_caching: bool,
     #[serde(default)]
     pub enable_partial_caching: bool,

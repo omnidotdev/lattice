@@ -1,8 +1,8 @@
 # Packages that should not have their tests run automatically
-ignore-test-packages = ["grafbase-docker-tests", "federation-audit-tests"]
+ignore-test-packages = ["grafbase-docker-tests"]
 
 # Test suites that depend on docker so should only be run on linux
-docker-test-packages = ["integration-tests", "grafbase-gateway"]
+docker-test-packages = ["grafbase-gateway"]
 
 [[path-rule]]
 # Trigger all for this GHA workflow

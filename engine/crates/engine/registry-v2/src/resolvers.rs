@@ -10,7 +10,6 @@ pub mod graphql;
 pub mod http;
 pub mod introspection;
 pub mod join;
-pub mod postgres;
 pub mod transformer;
 pub mod variable_resolve_definition;
 
@@ -27,7 +26,6 @@ pub enum Resolver {
     Http(Box<http::HttpResolver>),
     Graphql(Box<graphql::Resolver>),
     MongoResolver(atlas_data_api::AtlasDataApiResolver),
-    PostgresResolver(postgres::PostgresResolver),
     FederationEntitiesResolver,
     Introspection(introspection::IntrospectionResolver),
     Join(join::JoinResolver),

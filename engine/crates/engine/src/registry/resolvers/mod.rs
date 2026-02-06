@@ -34,7 +34,6 @@ pub mod http;
 mod introspection;
 mod logged_fetch;
 mod pagination;
-pub mod postgres;
 mod resolved_value;
 pub mod transformer;
 
@@ -266,14 +265,6 @@ pub(crate) async fn run_resolver(
                 operation_type = resolver.operation_type.as_ref(),
                 directive_name = resolver.directive_name,
                 collection = resolver.collection
-            ))
-            .await
-            .map_err(Into::into),
-        Resolver::PostgresResolver(resolver) => postgres::resolve(resolver, ctx, resolver_ctx)
-            .instrument(info_span!(
-                "postgres_resolver",
-                operation = resolver.operation.as_ref(),
-                directive_name = resolver.directive_name
             ))
             .await
             .map_err(Into::into),

@@ -48,7 +48,7 @@ let mut subgraphs = Subgraphs::default();
 subgraphs.ingest(&user_subgraph, "users-service", "http://users.example.com");
 subgraphs.ingest(&cart_subgraph, "carts-service", "http://carts.example.com");
 
-let composed = compose(&subgraphs).into_result().unwrap().into_federated_sdl();
+let composed = compose(&subgraphs).into_result().unwrap().into_federated_sdl().unwrap();
 
 let expected = r#"
 directive @core(feature: String!) repeatable on SCHEMA

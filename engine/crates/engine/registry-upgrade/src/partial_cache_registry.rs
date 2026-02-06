@@ -22,7 +22,6 @@ pub fn convert_v1_to_partial_cache_registry(
         auth: _,
         mongodb_configurations: _,
         http_headers: _,
-        postgres_databases: _,
         enable_caching,
         enable_partial_caching,
         federation_entities: _,

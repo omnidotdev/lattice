@@ -115,11 +115,3 @@ dependencies = ["mac-install-cargo-instruments"]
 command = "cargo"
 args = ["instruments", "-t", "Leaks", "--time-limit", "30000", "--", "dev"]
 
-[tasks.build-cli-app]
-description = "Build packages/cli-app — the Pathfinder wrapper included in CLI"
-script = '''
-pushd ../packages/cli-app
-npx --yes pnpm i
-npx --yes pnpm run cli-app:build
-popd
-'''

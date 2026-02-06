@@ -4,7 +4,7 @@ description = "A dynamic GraphQL engine written in Rust"
 edition = "2021"
 homepage = "https://grafbase.com"
 keywords = ["graphql", "engine", "grafbase"]
-license = "MPL-2.0"
+license = "MIT"
 name = "engine-v2"
 repository = "https://github.com/grafbase/grafbase"
 version = "3.0.31"
@@ -60,7 +60,6 @@ walker = { path = "./walker", package = "engine-v2-walker" }
 engine = { path = "../engine" }
 runtime.workspace = true
 rand.workspace = true
-grafbase-workspace-hack.workspace = true
 
 [dev-dependencies]
 pretty_assertions = "1"

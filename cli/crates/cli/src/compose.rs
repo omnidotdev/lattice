@@ -19,7 +19,7 @@ pub fn compose_command(cmd: ComposeCommand) -> Result<(), CliError> {
     let config = ComposeConfig::load(&cmd.config)?;
     let mut subgraphs = Subgraphs::default();
 
-    let rt = Runtime::new().unwrap();
+    let rt = Runtime::new().map_err(CliError::RuntimeCreation)?;
 
     for (name, subgraph) in &config.subgraphs {
         let schema = rt.block_on(subgraph.fetch_schema(&config.headers))?;
@@ -37,9 +37,9 @@ pub fn compose_command(cmd: ComposeCommand) -> Result<(), CliError> {
 
     // Convert to result, handling errors.
     let federated_graph = match result.into_result() {
-        Ok(graph) => graph
-            .into_latest()
-            .expect("graph should be convertible to latest version"),
+        Ok(graph) => graph.into_latest().map_err(|e| {
+            CliError::CompositionFailed(format!("failed to convert graph to latest version: {e}"))
+        })?,
         Err(diagnostics) => {
             let errors: Vec<_> = diagnostics.iter_messages().collect();
             return Err(CliError::CompositionFailed(errors.join("\n")));
@@ -59,7 +59,9 @@ pub fn compose_command(cmd: ComposeCommand) -> Result<(), CliError> {
             );
         }
         None => {
-            std::io::stdout().write_all(sdl.as_bytes()).unwrap();
+            std::io::stdout()
+                .write_all(sdl.as_bytes())
+                .map_err(CliError::StdoutWrite)?;
         }
     }
 

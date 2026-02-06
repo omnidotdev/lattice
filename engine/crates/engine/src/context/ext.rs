@@ -2,7 +2,6 @@ use std::any::{Any, TypeId};
 
 use engine_value::{ConstValue as Value, Value as InputValue}; // WHY?
 use graph_entities::QueryResponse;
-use postgres_connector_types::database_definition::DatabaseDefinition;
 use query_path::QueryPath;
 
 use crate::{
@@ -49,10 +48,6 @@ pub trait ContextExt<'a>: Context<'a> {
     /// Find a mongodb configuration with name.
     fn get_mongodb_config(&self, name: &str) -> Option<&'a registry_v2::mongodb::MongoDBConfiguration> {
         self.schema_env().registry.mongodb_configurations.get(name)
-    }
-
-    fn get_postgres_definition(&self, name: &str) -> Option<&'a DatabaseDefinition> {
-        self.schema_env().registry.postgres_databases.get(name)
     }
 
     fn set_error_path(&self, error: ServerError) -> ServerError {

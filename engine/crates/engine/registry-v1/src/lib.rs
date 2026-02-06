@@ -12,7 +12,6 @@ mod serde_preserve_enum;
 mod types;
 
 use gateway_v2_auth_config::v1::AuthConfig;
-use postgres_connector_types::database_definition::DatabaseDefinition;
 use registry_v2::{
     CodegenConfig, ConnectorHeaders, CorsConfig, FederationEntity, MongoDBConfiguration, OperationLimits,
     TrustedDocuments,
@@ -52,8 +51,6 @@ pub struct Registry {
     #[serde(default)]
     pub http_headers: BTreeMap<String, ConnectorHeaders>,
     #[serde(default)]
-    pub postgres_databases: HashMap<String, DatabaseDefinition>,
-    #[serde(default)]
     pub enable_caching: bool,
     #[serde(default)]
     pub enable_partial_caching: bool,
@@ -92,7 +89,6 @@ impl Default for Registry {
             auth: Default::default(),
             mongodb_configurations: Default::default(),
             http_headers: Default::default(),
-            postgres_databases: Default::default(),
             enable_caching: false,
             enable_partial_caching: false,
             federation_entities: Default::default(),

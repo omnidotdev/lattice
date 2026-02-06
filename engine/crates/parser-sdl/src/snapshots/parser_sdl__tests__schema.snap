@@ -95,7 +95,6 @@ expression: req_string_a
     "height": null,
     "rootFields": null
   },
-  "postgres_databases": {},
   "query_type": "Query",
   "search_config": {
     "indices": {}

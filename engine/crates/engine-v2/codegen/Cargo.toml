@@ -20,4 +20,3 @@ tracing-subscriber = { workspace = true, features = [
   "ansi",
 ] }
 xshell = "0.2"
-grafbase-workspace-hack.workspace = true

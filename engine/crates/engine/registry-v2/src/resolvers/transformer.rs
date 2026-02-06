@@ -17,24 +17,6 @@ pub enum Transformer {
     RemoteUnion,
     /// Convert MongoDB timestamp as number
     MongoTimestamp,
-    /// A special transformer to fetch Postgres page info for the current results.
-    PostgresPageInfo,
-    /// Calculate cursor value for a Postgres row.
-    PostgresCursor,
-    /// Set Postgres selection data.
-    PostgresSelectionData {
-        directive_name: String,
-        table_id: TableId,
-    },
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize, serde::Deserialize)]
-pub struct TableId(pub u32);
-
-impl From<TableId> for u32 {
-    fn from(value: TableId) -> Self {
-        value.0
-    }
 }
 
 impl Transformer {

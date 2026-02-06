@@ -1,25 +1,18 @@
 #![allow(deprecated)]
 
 use engine_parser::Positioned;
-use grafbase_sql_ast::ast::Order;
 
-use graphql_cursor::GraphqlCursor;
-
-use postgres_connector_types::{
-    cursor::SQLCursor,
-    database_definition::{self},
-};
 use registry_v2::EnumType;
 use serde_json::Value;
 
 use super::{ResolvedPaginationInfo, ResolvedValue};
 use crate::{
     registry::{
-        resolvers::{postgres::CollectionArgs, resolved_value::SelectionData, ResolverContext},
+        resolvers::ResolverContext,
         type_kinds::OutputType,
         union_discriminator::discriminator_matches,
     },
-    ContextExt, ContextField, Error,
+    ContextField, Error,
 };
 
 pub(super) async fn resolve(
@@ -112,136 +105,6 @@ pub(super) async fn resolve(
             };
 
             Ok(ResolvedValue::new(value))
-        }
-        Transformer::PostgresPageInfo => {
-            let mut resolved_value =
-                last_resolver_value.ok_or_else(|| Error::new("Internal error resolving postgres page info"))?;
-
-            let selection_data = resolved_value
-                .selection_data
-                .take()
-                .expect("we must have selection data set before this");
-
-            let mut rows = match resolved_value.take() {
-                Value::Array(rows) => rows,
-                _ => return Err(Error::new("cannot calculate page info for non-array data")),
-            };
-
-            let mut has_next_page = false;
-            let mut has_previous_page = false;
-
-            if let Some(first) = selection_data.first() {
-                if (rows.len() as u64) > first {
-                    has_next_page = true;
-                    rows.pop();
-                }
-            }
-
-            if let Some(last) = selection_data.last() {
-                if (rows.len() as u64) > last {
-                    has_previous_page = true;
-                    rows.remove(0);
-                }
-            }
-
-            let start_cursor = rows.first().and_then(Value::as_object).map(|row| {
-                let cursor = SQLCursor::new(row.clone(), selection_data.order_by());
-                GraphqlCursor::try_from(cursor).unwrap()
-            });
-
-            let end_cursor = rows.last().and_then(Value::as_object).map(|row| {
-                let cursor = SQLCursor::new(row.clone(), selection_data.order_by());
-                GraphqlCursor::try_from(cursor).unwrap()
-            });
-
-            let page_info = ResolvedPaginationInfo {
-                start_cursor,
-                end_cursor,
-                has_next_page,
-                has_previous_page,
-            };
-
-            let mut new_value = ResolvedValue::new(Value::Array(rows));
-            new_value.selection_data = Some(selection_data.clone());
-            new_value.pagination = Some(page_info);
-
-            Ok(new_value)
-        }
-        Transformer::PostgresSelectionData {
-            directive_name,
-            table_id,
-        } => {
-            let database_definition = ctx
-                .get_postgres_definition(directive_name)
-                .expect("we must have an introspected database");
-
-            let table = database_definition.walk(database_definition::TableId::from(table_id.0));
-
-            let root_field = ctx
-                .look_ahead()
-                .iter_selection_fields()
-                .next()
-                .expect("we always have at least one field in the query");
-
-            let args = CollectionArgs::new(database_definition, table, &root_field)?;
-            let mut selection_data = SelectionData::default();
-
-            if let Some(first) = args.first() {
-                selection_data.set_first(first);
-            }
-
-            if let Some(last) = args.last() {
-                selection_data.set_last(last);
-            }
-
-            let explicit_order = args
-                .order_by()
-                .raw_order()
-                .map(|(column, order)| {
-                    let order = order.map(|order| match order {
-                        Order::DescNullsFirst => "DESC",
-                        _ => "ASC",
-                    });
-
-                    (column.to_string(), order)
-                })
-                .collect();
-
-            selection_data.set_order_by(explicit_order);
-
-            let mut resolved_value = last_resolver_value
-                .ok_or_else(|| Error::new("Internal error resolving postgres selection data"))?
-                .clone();
-
-            resolved_value.selection_data = Some(selection_data);
-
-            Ok(resolved_value)
-        }
-        Transformer::PostgresCursor => {
-            let mut resolved_value =
-                last_resolver_value.ok_or_else(|| Error::new("Internal error resolving postgres cursor"))?;
-
-            let selection_data = resolved_value
-                .selection_data
-                .take()
-                .expect("we must set selection data for cursors to work");
-
-            let cursor = match resolved_value.take() {
-                Value::Object(row) => {
-                    let cursor = SQLCursor::new(row, selection_data.order_by());
-
-                    GraphqlCursor::try_from(cursor)
-                        .ok()
-                        .and_then(|cursor| serde_json::to_value(cursor).ok())
-                        .unwrap_or_default()
-                }
-                _ => Default::default(),
-            };
-
-            let mut new_value = ResolvedValue::new(cursor);
-            new_value.selection_data = Some(selection_data.clone());
-
-            Ok(new_value)
         }
     }
 }

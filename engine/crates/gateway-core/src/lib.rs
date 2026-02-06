@@ -1,4 +1,3 @@
-use grafbase_workspace_hack as _;
 
 use crate::rate_limit::RatelimitContext;
 use engine::parser::types::OperationType;

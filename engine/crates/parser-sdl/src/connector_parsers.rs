@@ -91,7 +91,6 @@ pub(crate) fn merge_registry(ctx: &mut VisitorContext<'_>, mut src_registry: Reg
 
     main_registry.implements.extend(src_registry.implements);
     main_registry.http_headers.extend(src_registry.http_headers);
-    main_registry.postgres_databases.extend(src_registry.postgres_databases);
     main_registry
         .federation_entities
         .extend(src_registry.federation_entities);

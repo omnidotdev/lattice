@@ -4,7 +4,7 @@ authors = ["Grafbase"]
 description = "A GraphQL dataloader implementation for Grafbase"
 version = "0.1.0"
 edition = "2021"
-license = "MPL-2.0"
+license = "MIT"
 homepage = "https://grafbase.com"
 repository = "https://github.com/grafbase/grafbase"
 keywords = ["graphql", "dataloader", "grafbase"]
@@ -20,7 +20,6 @@ futures-timer = { version = "3.0.3", default-features = false, features = ["wasm
 futures-util = { workspace = true, features = ["io", "sink"] }
 lru = { version = "0.12.3", default-features = false }
 tracing = { workspace = true, optional = true }
-grafbase-workspace-hack.workspace = true
 
 [dev-dependencies]
 tokio = { version = "1.37", features = [

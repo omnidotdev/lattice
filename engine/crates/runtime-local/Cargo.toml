@@ -4,7 +4,7 @@ authors = ["Grafbase"]
 description = "An implementation of the Grafbase runtime for local use"
 version = "0.1.0"
 edition = "2021"
-license = "MPL-2.0"
+license = "MIT"
 homepage = "https://grafbase.com"
 repository = "https://github.com/grafbase/grafbase"
 keywords = ["local", "runtime", "grafbase"]
@@ -36,7 +36,6 @@ registry-v2.workspace = true
 runtime.workspace = true
 gateway-config.workspace = true
 url = { workspace = true, optional = true }
-postgres-connector-types = { path = "../postgres-connector-types" }
 mini-moka = "0.10"
 redis = { version = "0.25.3", features = ["tokio-rustls-comp", "connection-manager"], optional = true }
 
@@ -49,4 +48,3 @@ wasi-component-loader = { version = "0.80.0", path = "../wasi-component-loader",
 deadpool = { version = "0.12.1", features = ["rt_tokio_1"] , optional = true }
 grafbase-telemetry.workspace = true
 anyhow.workspace = true
-grafbase-workspace-hack.workspace = true

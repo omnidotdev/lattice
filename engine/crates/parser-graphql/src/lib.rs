@@ -3,7 +3,6 @@
 //! The parser fetches a GraphQL schema from an upstream server, parses the response, and modifies
 //! it to allow the result to be exposed through the Grafbase API.
 
-use grafbase_workspace_hack as _;
 
 mod conversion;
 

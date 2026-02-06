@@ -4,7 +4,7 @@ authors = ["Grafbase"]
 description = "Small crate for working with GraphQL type strings"
 version = "0.1.0"
 edition = "2021"
-license = "MPL-2.0"
+license = "MIT"
 homepage = "https://grafbase.com"
 repository = "https://github.com/grafbase/grafbase"
 keywords = ["graphql", "value", "grafbase"]
@@ -13,4 +13,3 @@ publish = false
 [features]
 
 [dependencies]
-grafbase-workspace-hack.workspace = true

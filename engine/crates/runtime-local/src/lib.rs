@@ -1,4 +1,3 @@
-use grafbase_workspace_hack as _;
 
 mod bridge;
 mod cache;
@@ -9,7 +8,6 @@ pub mod hooks;
 mod kv;
 mod log;
 mod operation_cache;
-mod pg;
 pub mod rate_limiting;
 #[cfg(feature = "redis")]
 pub mod redis;
@@ -23,7 +21,6 @@ pub use entity_cache::redis::RedisEntityCache;
 pub use fetch::NativeFetcher;
 pub use kv::*;
 pub use operation_cache::{InMemoryOperationCache, InMemoryOperationCacheFactory};
-pub use pg::{LazyPgConnectionsPool, LocalPgTransportFactory};
 pub use ufd_invoker::UdfInvokerImpl;
 
 #[cfg(feature = "wasi")]

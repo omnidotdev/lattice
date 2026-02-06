@@ -1,6 +1,5 @@
 use std::path::PathBuf;
 
-use grafbase_workspace_hack as _;
 
 mod domain;
 mod formatter;

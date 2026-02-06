@@ -3,7 +3,6 @@ use std::collections::{BTreeMap, HashMap};
 use anyhow::anyhow;
 use gateway_v2_auth_config::v1::AuthConfig;
 use indexmap::IndexSet;
-use postgres_connector_types::database_definition::DatabaseDefinition;
 
 use crate::rate_limiting::RateLimitConfig;
 use crate::{
@@ -52,7 +51,6 @@ pub struct RegistryWriter {
     pub auth: AuthConfig,
     pub mongodb_configurations: HashMap<String, MongoDBConfiguration>,
     pub http_headers: BTreeMap<String, ConnectorHeaders>,
-    pub postgres_databases: HashMap<String, DatabaseDefinition>,
     pub enable_caching: bool,
     pub enable_partial_caching: bool,
     pub federation_entities: BTreeMap<String, FederationEntity>,
@@ -218,7 +216,6 @@ impl RegistryWriter {
             auth,
             mongodb_configurations,
             http_headers,
-            postgres_databases,
             enable_caching,
             enable_partial_caching,
             federation_entities,
@@ -264,7 +261,6 @@ impl RegistryWriter {
             auth,
             mongodb_configurations,
             http_headers,
-            postgres_databases,
             enable_caching,
             enable_partial_caching,
             federation_entities,

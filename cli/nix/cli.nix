@@ -68,8 +68,6 @@ in
       "-C linker=clang -C link-arg=-fuse-ld=lld"
     ];
 
-    GRAFBASE_CLI_PATHFINDER_BUNDLE_PATH = config.packages.cli-app;
-
     doCheck = false;
 
     nativeBuildInputs = [

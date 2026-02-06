@@ -4,7 +4,7 @@ authors = ["Grafbase"]
 description = "Custom scalars used by the engine"
 version = "0.1.0"
 edition = "2021"
-license = "MPL-2.0"
+license = "MIT"
 homepage = "https://grafbase.com"
 repository = "https://github.com/grafbase/grafbase"
 keywords = ["graphql", "value", "grafbase"]
@@ -26,7 +26,6 @@ serde_json.workspace = true
 time = { version = "0.3.36", features = ["parsing"] }
 url = { workspace = true, features = ["serde"] }
 uuid.workspace = true
-grafbase-workspace-hack.workspace = true
 
 [dev-dependencies]
 insta.workspace = true

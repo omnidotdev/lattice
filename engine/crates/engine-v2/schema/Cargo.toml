@@ -4,7 +4,7 @@ description = "The engine schema graph"
 edition = "2021"
 homepage = "https://grafbase.com"
 keywords = ["graphql", "engine", "grafbase"]
-license = "MPL-2.0"
+license = "MIT"
 name = "engine-v2-schema"
 repository = "https://github.com/grafbase/grafbase"
 version = "3.0.31"
@@ -33,7 +33,6 @@ federated-graph.workspace = true
 wrapping.workspace = true
 regex.workspace = true
 serde_regex = "1.1.0"
-grafbase-workspace-hack.workspace = true
 
 [dev-dependencies]
 insta.workspace = true

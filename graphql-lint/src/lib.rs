@@ -1,4 +1,3 @@
-use grafbase_workspace_hack as _;
 
 use cynic_parser::type_system::{
     Definition, Directive, DirectiveDefinition, EnumDefinition, EnumValueDefinition, FieldDefinition,

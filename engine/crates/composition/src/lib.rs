@@ -2,7 +2,6 @@
 #![allow(clippy::option_option)]
 #![doc = include_str!("../README.md")]
 
-use grafbase_workspace_hack as _;
 
 mod compose;
 mod composition_ir;
@@ -76,22 +75,3 @@ impl<T> VecExt<T> for Vec<T> {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn grafbase_schema_can_be_composed() {
-        use std::{fs, path::Path};
-        let schema_path =
-            Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../cli/crates/backend/src/api/graphql/api.graphql");
-        let schema = fs::read_to_string(schema_path).unwrap();
-
-        let mut subgraphs = Subgraphs::default();
-        subgraphs
-            .ingest_str(&schema, "grafbase-api", "https://api.grafbase.com")
-            .unwrap();
-        let result = compose(&subgraphs);
-        assert!(!result.diagnostics().any_fatal());
-    }
-}
