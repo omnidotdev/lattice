@@ -1,0 +1,16 @@
+[package]
+name = "engine-parser"
+description = "A GraphQL query parser for engine"
+version = "3.0.31"
+edition = "2021"
+license = "MIT"
+homepage.workspace = true
+repository.workspace = true
+keywords.workspace = true
+
+[dependencies]
+engine-value = { path = "../value", version = "3" }
+pest = "2.7.9"
+pest_derive = "2.7.9"
+lattice-telemetry.workspace = true
+serde.workspace = true

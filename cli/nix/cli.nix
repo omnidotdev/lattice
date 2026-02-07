@@ -8,7 +8,7 @@ let
   rustToolchain = pkgs.rust-bin.stable.latest.default;
   craneLib = (crane.mkLib pkgs).overrideToolchain rustToolchain;
   workspaceRoot = builtins.path {
-    name = "grafbase-repo-src";
+    name = "lattice-src";
     path = ../../.;
   };
 
@@ -22,7 +22,7 @@ let
     assets.tar.gz
 
     # We can't ignore /packages wholesale because we need to include
-    # grafbase-sdk/package.json later.
+    # lattice-sdk/package.json later.
     /packages/**/*.json
     /packages/**/*.js
     /packages/**/*.ts
@@ -36,10 +36,10 @@ let
     node_modules/
     yarn.lock
 
-    !/engine/crates/validation/README.md
-    !/engine/crates/composition/README.md
-    !/engine/crates/graphql-schema-diff/README.md
-    !/packages/grafbase-sdk/package.json
+    !/core/validation/README.md
+    !/core/composition/README.md
+    !/core/graphql-schema-diff/README.md
+    !/packages/lattice-sdk/package.json
   '';
 
   src = pkgs.nix-gitignore.gitignoreSource [ extraIgnores ] (lib.cleanSourceWith {
@@ -57,11 +57,11 @@ in
 {
   packages.cli = craneLib.buildPackage {
     inherit src;
-    pname = "grafbase";
+    pname = "lattice-cli";
     version = builtins.readFile version;
     stdenv = pkgs.clangStdenv;
 
-    cargoBuildFlags = "-p grafbase";
+    cargoBuildFlags = "-p lattice-cli";
 
     RUSTFLAGS = builtins.concatStringsSep " " [
       "-Arust-2018-idioms -Aunused-crate-dependencies"

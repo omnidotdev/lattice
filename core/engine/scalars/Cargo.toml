@@ -1,0 +1,30 @@
+[package]
+name = "engine-scalars"
+description = "Custom scalars used by the engine"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+homepage.workspace = true
+repository.workspace = true
+keywords.workspace = true
+publish = false
+
+[features]
+
+[dependencies]
+base64.workspace = true
+chrono = { workspace = true, features = ["alloc"] }
+engine-value.workspace = true
+fast_chemail = "0.9"
+hex.workspace = true
+ipnet = "2"
+nom = "7"
+rust_decimal = "1"
+serde.workspace = true
+serde_json.workspace = true
+time = { version = "0.3.36", features = ["parsing"] }
+url = { workspace = true, features = ["serde"] }
+uuid.workspace = true
+
+[dev-dependencies]
+insta.workspace = true

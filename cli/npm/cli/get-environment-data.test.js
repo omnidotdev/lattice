@@ -20,10 +20,10 @@ test('aarch64-apple-darwin', () => {
     value: 'arm64',
   })
 
-  const environmentData = getEnvironmentData('grafbase')
+  const environmentData = getEnvironmentData('lattice')
 
   expect(environmentData.targetTriple).toBe('aarch64-apple-darwin')
-  expect(environmentData.binary).toBe('grafbase')
+  expect(environmentData.binary).toBe('lattice')
 })
 
 test('x86_64-apple-darwin', () => {
@@ -34,10 +34,10 @@ test('x86_64-apple-darwin', () => {
     value: 'x64',
   })
 
-  const environmentData = getEnvironmentData('grafbase')
+  const environmentData = getEnvironmentData('lattice')
 
   expect(environmentData.targetTriple).toBe('x86_64-apple-darwin')
-  expect(environmentData.binary).toBe('grafbase')
+  expect(environmentData.binary).toBe('lattice')
 })
 
 test('x86_64-unknown-linux-musl', () => {
@@ -48,10 +48,10 @@ test('x86_64-unknown-linux-musl', () => {
     value: 'x64',
   })
 
-  const environmentData = getEnvironmentData('grafbase')
+  const environmentData = getEnvironmentData('lattice')
 
   expect(environmentData.targetTriple).toBe('x86_64-unknown-linux-musl')
-  expect(environmentData.binary).toBe('grafbase')
+  expect(environmentData.binary).toBe('lattice')
 })
 
 test('aarch64-unknown-linux-musl', () => {
@@ -62,10 +62,10 @@ test('aarch64-unknown-linux-musl', () => {
     value: 'arm64',
   })
 
-  const environmentData = getEnvironmentData('grafbase')
+  const environmentData = getEnvironmentData('lattice')
 
   expect(environmentData.targetTriple).toBe('aarch64-unknown-linux-musl')
-  expect(environmentData.binary).toBe('grafbase')
+  expect(environmentData.binary).toBe('lattice')
 })
 
 test('x86_64-pc-windows-msvc', () => {
@@ -76,8 +76,8 @@ test('x86_64-pc-windows-msvc', () => {
     value: 'x64',
   })
 
-  const environmentData = getEnvironmentData('grafbase')
+  const environmentData = getEnvironmentData('lattice')
 
   expect(environmentData.targetTriple).toBe('x86_64-pc-windows-msvc')
-  expect(environmentData.binary).toBe('grafbase.exe')
+  expect(environmentData.binary).toBe('lattice.exe')
 })

@@ -1,4 +1,4 @@
-name: federation-audit
+name: Federation Audit 🧪
 
 on:
   workflow_dispatch:
@@ -18,66 +18,30 @@ concurrency:
 
 jobs:
   what-changed:
+    name: Detect changes 🔍
     runs-on: ubicloud-standard-2
+    timeout-minutes: 10
     outputs:
-      rust: ${{ steps.what-rust-changed.outputs.rust }}
-      github-action: ${{ steps.paths-changed.outputs.github-action }}
+      audit: ${{ steps.paths-changed.outputs.audit }}
     steps:
-      - name: Checkout Repository
+      - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          # TODO: Figure out how to not make this zero
-          # Seems like if it's not zero you dont get branches
-          fetch-depth: 0
-
-      - name: Install rust
-        uses: ./.github/actions/install-rust
-
-      # If you're iterating on this you may want to change this to a cargo install
-      # while you work
-      - name: Install what-rust-changed
-        uses: ./.github/actions/install-what-rust-changed
-        with:
-          version: v0.1.0
-
-      - name: Run what-rust-changed
-        id: what-rust-changed
-        shell: bash
-        env:
-          WHAT_RUST_CHANGED_CONFIG: .github/what-rust-changed.toml
-        run: |
-          set -euo pipefail
-          HEAD_REF="$(git rev-parse HEAD)"
-          BASE_REF="remotes/origin/${GITHUB_BASE_REF:-main}"
-          echo "Head: $HEAD_REF"
-          echo "Base: $BASE_REF"
-          MERGE_BASE=$(git merge-base $BASE_REF $HEAD_REF)
-          echo "Merge Base: $MERGE_BASE"
-          git checkout $MERGE_BASE
-          cargo metadata > /tmp/base.metadata.json
-          git checkout $HEAD_REF
-          cargo metadata --locked > /tmp/target.metadata.json
-          CHANGED_FILES=$(git diff --no-commit-id --name-only -r $MERGE_BASE HEAD)
-          CHANGES=$(echo $CHANGED_FILES | xargs what-rust-changed /tmp/base.metadata.json /tmp/target.metadata.json)
-          echo "rust=$CHANGES" >> "$GITHUB_OUTPUT"
-          echo "Done.  Output Contents:"
-          echo ""
-          cat $GITHUB_OUTPUT
 
       - name: Check paths changed
         uses: dorny/paths-filter@v3
         id: paths-changed
         with:
           filters: |
-            github-action:
-              - .github/workflows/federation-audit.yml
+            audit:
+              - 'core/engine-v2/**'
+              - 'core/federation-audit-tests/**'
+              - '.github/workflows/federation-audit.yml'
 
   audit:
+    name: Run audit 🦀
     needs: [what-changed]
-    if: |
-      contains(fromJson(needs.what-changed.outputs.rust).changed-packages, 'engine-v2')
-      || contains(fromJson(needs.what-changed.outputs.rust).changed-packages, 'federation-audit-tests')
-      || needs.what-changed.outputs.github-action == 'true'
+    timeout-minutes: 30
+    if: needs.what-changed.outputs.audit == 'true'
     runs-on: ubicloud-standard-8
     permissions:
       checks: write
@@ -88,22 +52,7 @@ jobs:
       - name: Get sources
         uses: actions/checkout@v4
 
-      - name: Dump inputs for debugging
-        shell: bash
-        run: |
-          echo ${{ needs.what-changed.outputs.rust }}
-
-      # Disabling caching for now because I'm worried about using up any more of our cache storage.
-      # Can revisit later if we need to.
-      # - uses: Swatinem/rust-cache@v2
-      #   if: ${{ !startsWith(github.head_ref, 'renovate-') }}
-      #   with:
-      #     # Our windows & mac runners are hosted by github, so using github for
-      #     # their cache makes sense.  Buildjet is faster (and offers more storage) for
-      #     # others though.
-      #     cache-provider: ${{ contains(matrix.platform.target, 'linux') && 'buildjet' || 'github' }}
-
-      - name: Install rust
+      - name: Install Rust
         uses: ./.github/actions/install-rust
         with:
           target: x86_64-unknown-linux-gnu
@@ -113,7 +62,6 @@ jobs:
         with:
           tool: nextest
 
-      # https://github.com/actions/setup-node/issues/899
       - name: Enable Corepack before setting up Node
         shell: bash
         run: corepack enable
@@ -136,7 +84,7 @@ jobs:
       - name: Start audit test server
         uses: JarvusInnovations/background-action@v1
         with:
-          working-directory: engine/crates/federation-audit-tests/gateway-audit-repo
+          working-directory: core/federation-audit-tests/gateway-audit-repo
           run: |
             npm start serve
           wait-on: |
@@ -152,7 +100,7 @@ jobs:
         run: |
           cargo nextest run --profile ci -p federation-audit-tests --test audit_tests
 
-      - name: Upload the JUnit files
+      - name: Upload JUnit files
         if: ${{ ( success() || failure() ) && !contains(steps.tests.outputs.exitcode, '101') }}
         uses: ./.github/actions/test_upload_datadog
         with:
@@ -160,7 +108,7 @@ jobs:
           junit_path: target/nextest/ci/junit.xml
           service: audit-tests
 
-      - name: Publish Test Report
+      - name: Publish test report
         uses: mikepenz/action-junit-report@v5.0.0-a03
         if: success() || failure()
         with:

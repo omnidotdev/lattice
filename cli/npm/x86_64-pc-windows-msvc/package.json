@@ -1,17 +1,21 @@
 {
-  "name": "@grafbase/cli-x86_64-pc-windows-msvc",
+  "name": "@omnidotdev/cli-x86_64-pc-windows-msvc",
   "version": "0.80.0",
-  "description": "x86_64-pc-windows-msvc binary for Grafbase CLI",
+  "description": "x86_64-pc-windows-msvc binary for Lattice CLI",
   "keywords": [
-    "grafbase",
+    "lattice",
     "windows",
     "win32",
     "x64",
     "msvc"
   ],
+  "homepage": "https://lattice.omni.dev",
+  "bugs": {
+    "url": "https://github.com/omnidotdev/lattice/issues"
+  },
   "repository": {
     "type": "git",
-    "url": "https://github.com/grafbase/grafbase",
+    "url": "https://github.com/omnidotdev/lattice",
     "directory": "cli"
   },
   "license": "Apache-2.0",
@@ -21,10 +25,13 @@
   "cpu": [
     "x64"
   ],
+  "bin": {
+    "lattice": "lattice.exe"
+  },
   "publishConfig": {
     "access": "public",
     "executableFiles": [
-      "grafbase.exe"
+      "lattice.exe"
     ]
   }
 }

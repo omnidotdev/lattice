@@ -1,0 +1,18 @@
+[package]
+name = "engine-value"
+description = "A GraphQL value type for engine"
+version = "3.0.31"
+edition = "2021"
+license = "MIT"
+homepage.workspace = true
+repository.workspace = true
+keywords.workspace = true
+
+[features]
+default = []
+
+[dependencies]
+serde_json.workspace = true
+serde.workspace = true
+bytes = { version = "1.6.0", features = ["serde"] }
+indexmap = { workspace = true, features = ["serde"] }

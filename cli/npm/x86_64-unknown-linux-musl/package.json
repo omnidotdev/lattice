@@ -1,16 +1,20 @@
 {
-  "name": "@grafbase/cli-x86_64-unknown-linux-musl",
+  "name": "@omnidotdev/cli-x86_64-unknown-linux-musl",
   "version": "0.80.0",
-  "description": "x86_64-unknown-linux-musl binary for Grafbase CLI",
+  "description": "x86_64-unknown-linux-musl binary for Lattice CLI",
   "keywords": [
-    "grafbase",
+    "lattice",
     "linux",
     "x64",
     "musl"
   ],
+  "homepage": "https://lattice.omni.dev",
+  "bugs": {
+    "url": "https://github.com/omnidotdev/lattice/issues"
+  },
   "repository": {
     "type": "git",
-    "url": "https://github.com/grafbase/grafbase",
+    "url": "https://github.com/omnidotdev/lattice",
     "directory": "cli"
   },
   "license": "Apache-2.0",
@@ -20,10 +24,13 @@
   "cpu": [
     "x64"
   ],
+  "bin": {
+    "lattice": "lattice"
+  },
   "publishConfig": {
     "access": "public",
     "executableFiles": [
-      "grafbase"
+      "lattice"
     ]
   }
 }

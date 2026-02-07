@@ -9,7 +9,7 @@
   # use flake
   # dotenv .env
   #
-  description = "Grafbase CLI development environment";
+  description = "Lattice development environment";
 
   inputs = {
     crane = {
@@ -97,8 +97,8 @@
 
         shellHook = ''
           project_root="$(git rev-parse --show-toplevel 2>/dev/null || jj workspace root 2>/dev/null)"
-          export POSTGRES_URL=postgresql://postgres:grafbase@localhost:5432
-          export PGBOUNCER_URL=postgresql://postgres:grafbase@localhost:6432
+          export POSTGRES_URL=postgresql://postgres:lattice@localhost:5432
+          export PGBOUNCER_URL=postgresql://postgres:lattice@localhost:6432
           export CARGO_INSTALL_ROOT="$project_root/cli/.cargo";
           export PATH="$CARGO_INSTALL_ROOT/bin:$project_root/node_modules/.bin:$PATH";
           if [[ "${system}" == "aarch64-darwin" ]]; then
@@ -128,7 +128,7 @@
           };
         };
 
-        imports = [./cli/nix/cli.nix ./nix/cli-app.nix ./gateway/nix/grafbase-gateway.nix];
+        imports = [./cli/nix/cli.nix ./nix/cli-app.nix ./nix/lattice-gateway.nix];
       };
     };
 }

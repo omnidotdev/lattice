@@ -24,25 +24,25 @@ const linkBinary = (binary, binaryPath) => {
 }
 
 const postinstall = () => {
-  const { targetTriple, binary } = getEnvironmentData('grafbase')
+  const { targetTriple, binary } = getEnvironmentData('lattice')
 
   if (!SUPPORTED_TARGET_TRIPLES.includes(targetTriple)) {
     console.error(`'${targetTriple}' is currently unsupported`)
     return
   }
 
-  const packagePath = dirname(require.resolve(`@grafbase/cli-${targetTriple}/package.json`))
+  const packagePath = dirname(require.resolve(`@omnidotdev/cli-${targetTriple}/package.json`))
   const binaryPath = join(packagePath, binary)
 
   if (existsSync(binaryPath)) {
     try {
       linkBinary(binary, binaryPath)
     } catch {
-      console.error('Could not link or copy "grafbase" binary')
+      console.error('Could not link or copy "lattice" binary')
       return
     }
   } else {
-    console.error('Could not find "grafbase" binary')
+    console.error('Could not find "lattice" binary')
     return
   }
 }

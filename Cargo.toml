@@ -1,58 +1,50 @@
 [workspace]
 resolver = "2"
 members = [
-    "gateway/crates/*",
-    "cli/crates/*",
-    "engine/crates/*",
-    "engine/crates/gateway-v2/auth",
-    "engine/crates/gateway-v2/auth-config",
-    "engine/crates/engine-v2/config",
-    "engine/crates/engine-v2/axum",
-    "engine/crates/engine-v2/codegen",
-    "engine/crates/engine-v2/walker",
-    "engine/crates/engine-v2/schema",
-    "engine/crates/engine-v2/query-planning",
-    "engine/crates/engine-v2/id-derives",
-    "engine/crates/engine-v2/id-newtypes",
-    "engine/crates/engine/derive",
-    "engine/crates/engine/meta-type-name",
-    "engine/crates/engine/parser",
-    "engine/crates/engine/query-path",
-    "engine/crates/engine/registry-for-cache",
-    "engine/crates/engine/registry-upgrade",
-    "engine/crates/engine/registry-v2",
-    "engine/crates/engine/registry-v2-generator",
-    "engine/crates/engine/response",
-    "engine/crates/engine/scalars",
-    "engine/crates/engine/value",
-    "graph-ref",
-    "graphql-lint",
-    "gqlint",
+    "core/*",
+    "core/engine/derive",
+    "core/engine/meta-type-name",
+    "core/engine/parser",
+    "core/engine/query-path",
+    "core/engine/registry-for-cache",
+    "core/engine/registry-upgrade",
+    "core/engine/registry-v2",
+    "core/engine/registry-v2-generator",
+    "core/engine/response",
+    "core/engine/scalars",
+    "core/engine/value",
+    "core/engine-v2/config",
+    "core/engine-v2/axum",
+    "core/engine-v2/codegen",
+    "core/engine-v2/walker",
+    "core/engine-v2/schema",
+    "core/engine-v2/query-planning",
+    "core/engine-v2/id-derives",
+    "core/engine-v2/id-newtypes",
+    "core/gateway-v2/auth",
+    "core/gateway-v2/auth-config",
+    "cli",
+    "tools/graph-ref",
+    "tools/graphql-lint",
+    "tools/gqlint",
 ]
 exclude = [
-    "engine/crates/gateway-v2",
-    "engine/crates/wasi-component-loader/examples",
+    "core/gateway-v2",
+    "core/wasi-component-loader/examples",
 ]
 
+# TODO: fork these repos under omnidotdev and update URLs
 [patch.crates-io]
-axum = { git = "https://github.com/grafbase/axum", rev = "c3146f9ca921907d9884fbf7549a1520e9e72eac" }                                 # axum-tungstenite-upgrade
-multipart-stream = { git = "https://github.com/grafbase/multipart-stream-rs-fork", rev = "06ff198e4041c8a8c1c93e580c260d597727c193" } # http-1.0-fix-multipart-mixed
-opentelemetry = { git = "https://github.com/grafbase/opentelemetry-rust", rev = "f215fe9a391d7d159b9c8a6f8c303d143ba2910f" }                  # http-v1
-opentelemetry-otlp = { git = "https://github.com/grafbase/opentelemetry-rust", rev = "f215fe9a391d7d159b9c8a6f8c303d143ba2910f" }             # http-v1
-opentelemetry-stdout = { git = "https://github.com/grafbase/opentelemetry-rust", rev = "f215fe9a391d7d159b9c8a6f8c303d143ba2910f" }           # http-v1
-opentelemetry_sdk = { git = "https://github.com/grafbase/opentelemetry-rust", rev = "f215fe9a391d7d159b9c8a6f8c303d143ba2910f" }              # http-v1
+# Required: upstream serde_with lacks minify_field_names/minify_variant_names/skip_serializing_defaults
+serde_with = { git = "https://github.com/grafbase/serde_with", rev = "06ad277a0e0175c2364d3c065e303a6c8a775c8a" }
+# Required: patched OTel to fix tonic version alignment (upgrade otel to >= 0.24 to drop)
+opentelemetry = { git = "https://github.com/grafbase/opentelemetry-rust", rev = "f215fe9a391d7d159b9c8a6f8c303d143ba2910f" }
+opentelemetry-otlp = { git = "https://github.com/grafbase/opentelemetry-rust", rev = "f215fe9a391d7d159b9c8a6f8c303d143ba2910f" }
+opentelemetry-stdout = { git = "https://github.com/grafbase/opentelemetry-rust", rev = "f215fe9a391d7d159b9c8a6f8c303d143ba2910f" }
+opentelemetry_sdk = { git = "https://github.com/grafbase/opentelemetry-rust", rev = "f215fe9a391d7d159b9c8a6f8c303d143ba2910f" }
 opentelemetry-appender-tracing = { git = "https://github.com/grafbase/opentelemetry-rust", rev = "f215fe9a391d7d159b9c8a6f8c303d143ba2910f" }
-
-# FIXME: Uncomment when we upgrade opentelemetry to 0.23.
-# opentelemetry-aws = { git = "https://github.com/open-telemetry/opentelemetry-rust-contrib", rev = "086961e18437743c5ea43c9474cc1a7b13a49c6b" } # main
-reqwest = { git = "https://github.com/grafbase/reqwest", rev = "bcdc38deb99048eaee37313857e19ff3df7a2870" }                 # 0.12.8-with-patches-wasm-timeout
-serde_with = { git = "https://github.com/grafbase/serde_with", rev = "06ad277a0e0175c2364d3c065e303a6c8a775c8a" }           # minify-field-names
-# Upgrade 0.4.13 only to get rid of indexmap 1.9.
-# tower = { git = "https://github.com/grafbase/tower", rev = "7202cfeecd13ad6bbecd537d9799244313600db5" } # upgrade-indexmap
-# FIXME: Uncomment when we upgrade opentelemetry to 0.23.
-# tracing-opentelemetry = { git = "https://github.com/tokio-rs/tracing-opentelemetry", rev = "2539f4f7bde3dc3f320e5fb935d2c13a69a540dd" } # main
-tracing = { git = "https://github.com/tokio-rs/tracing", rev = "6d00d7d9f72dc6797138a1062bc33073afbad5a1" }      # v0.1.x
-tracing-core = { git = "https://github.com/tokio-rs/tracing", rev = "6d00d7d9f72dc6797138a1062bc33073afbad5a1" } # v0.1.x
+# Required: upstream multipart-stream uses http 0.2, codebase uses http 1.x
+multipart-stream = { git = "https://github.com/grafbase/multipart-stream-rs-fork", rev = "06ff198e4041c8a8c1c93e580c260d597727c193" }
 
 [workspace.package]
 version = "0.80.0"
@@ -71,7 +63,7 @@ async-graphql-value = "7.0.3"
 async-sse = "5"
 async-trait = "0.1.80"
 async-tungstenite = "0.26.0"
-axum = { version = "0.7.5", default-features = false }
+axum = { version = "0.7.6", default-features = false }
 axum-server = { version = "0.7", default-features = false }
 base64 = "0.22.1"
 bitflags = "2.5.0"
@@ -109,7 +101,7 @@ pprof = "0.13"
 postcard = { version = "1", features = ["use-std"] }
 rand = "0.8"
 regex = "1.10.4"
-reqwest = { version = "0.12.8", default-features = false, features = ["http2"] }
+reqwest = { version = "0.12.28", default-features = false, features = ["http2"] }
 rmp-serde = "1.3.0"
 rstest = "0.22"
 rustls = { version = "0.23.5", default-features = false }
@@ -162,54 +154,54 @@ opentelemetry-otlp = "0.15"
 opentelemetry-appender-tracing = "0.3.0"
 
 # Common
-graph-ref = { path = "graph-ref" }
-graphql-schema-validation = { path = "./engine/crates/validation" }
-grafbase-graphql-introspection = { path = "graphql-introspection" }
-graphql-lint = { path = "graphql-lint" }
+graph-ref = { path = "tools/graph-ref" }
+graphql-schema-validation = { path = "core/validation" }
+lattice-graphql-introspection = { path = "tools/graphql-introspection" }
+graphql-lint = { path = "tools/graphql-lint" }
 
 # Gateway
-federated-server = { path = "gateway/crates/federated-server" }
-gateway-config = { path = "gateway/crates/config" }
-rolling-logger = { path = "gateway/crates/rolling-logger" }
+federated-server = { path = "core/federated-server" }
+gateway-config = { path = "core/config" }
+rolling-logger = { path = "core/rolling-logger" }
 
 # Engine
-async-runtime = { path = "engine/crates/async-runtime" }
-common-types = { path = "engine/crates/common-types" }
-dataloader = { path = "engine/crates/dataloader", features = ["tracing"] }
-engine-config-builder = { path = "engine/crates/engine-config-builder" }
-engine-parser = { path = "engine/crates/engine/parser" }
-engine = { path = "engine/crates/engine" }
-engine-id-newtypes = { path = "engine/crates/engine/id-newtypes" }
-engine-response = { path = "engine/crates/engine/response" }
-engine-v2 = { path = "engine/crates/engine-v2" }
-engine-v2-axum = { path = "engine/crates/engine-v2/axum" }
-engine-validation = { path = "engine/crates/engine/validation" }
-engine-value = { path = "engine/crates/engine/value" }
-federated-graph = { path = "engine/crates/federated-graph", package = "graphql-federated-graph" }
-gateway-core = { path = "engine/crates/gateway-core" }
-gateway-v2-auth = { path = "engine/crates/gateway-v2/auth" }
-gateway-v2-auth-config = { path = "engine/crates/gateway-v2/auth-config" }
-grafbase-telemetry = { path = "engine/crates/telemetry" }
-graph-entities = { path = "engine/crates/graph-entities" }
-graphql-composition = { path = "engine/crates/composition" }
-graphql-cursor = { path = "engine/crates/graphql-cursor" }
-graphql-extensions = { path = "engine/crates/graphql-extensions" }
-graphql-mocks = { path = "engine/crates/graphql-mocks" }
-jwt-verifier = { path = "engine/crates/jwt-verifier" }
-operation-normalizer = { path = "engine/crates/operation-normalizer" }
-parser-graphql = { path = "engine/crates/parser-graphql" }
-parser-sdl = { path = "engine/crates/parser-sdl" }
-partial-caching = { path = "engine/crates/partial-caching" }
-query-path = { path = "engine/crates/engine/query-path" }
-registry-for-cache = { path = "engine/crates/engine/registry-for-cache" }
-registry-upgrade = { path = "engine/crates/engine/registry-upgrade" }
-registry-v1 = { path = "engine/crates/engine/registry-v1" }
-registry-v2 = { path = "engine/crates/engine/registry-v2" }
-runtime = { path = "engine/crates/runtime" }
-runtime-local = { path = "engine/crates/runtime-local" }
-runtime-noop = { path = "engine/crates/runtime-noop" }
-serde-dynamic-string = { path = "engine/crates/serde-dynamic-string" }
-wrapping = { path = "engine/crates/wrapping", package = "graphql-wrapping-types" }
+async-runtime = { path = "core/async-runtime" }
+common-types = { path = "core/common-types" }
+dataloader = { path = "core/dataloader", features = ["tracing"] }
+engine-config-builder = { path = "core/engine-config-builder" }
+engine-parser = { path = "core/engine/parser" }
+engine = { path = "core/engine" }
+engine-id-newtypes = { path = "core/engine/id-newtypes" }
+engine-response = { path = "core/engine/response" }
+engine-v2 = { path = "core/engine-v2" }
+engine-v2-axum = { path = "core/engine-v2/axum" }
+engine-validation = { path = "core/engine/validation" }
+engine-value = { path = "core/engine/value" }
+federated-graph = { path = "core/federated-graph", package = "graphql-federated-graph" }
+gateway-core = { path = "core/gateway-core" }
+gateway-v2-auth = { path = "core/gateway-v2/auth" }
+gateway-v2-auth-config = { path = "core/gateway-v2/auth-config" }
+lattice-telemetry = { path = "core/telemetry" }
+graph-entities = { path = "core/graph-entities" }
+graphql-composition = { path = "core/composition" }
+graphql-cursor = { path = "core/graphql-cursor" }
+graphql-extensions = { path = "core/graphql-extensions" }
+graphql-mocks = { path = "core/graphql-mocks" }
+jwt-verifier = { path = "core/jwt-verifier" }
+operation-normalizer = { path = "core/operation-normalizer" }
+parser-graphql = { path = "core/parser-graphql" }
+parser-sdl = { path = "core/parser-sdl" }
+partial-caching = { path = "core/partial-caching" }
+query-path = { path = "core/engine/query-path" }
+registry-for-cache = { path = "core/engine/registry-for-cache" }
+registry-upgrade = { path = "core/engine/registry-upgrade" }
+registry-v1 = { path = "core/engine/registry-v1" }
+registry-v2 = { path = "core/engine/registry-v2" }
+runtime = { path = "core/runtime" }
+runtime-local = { path = "core/runtime-local" }
+runtime-noop = { path = "core/runtime-noop" }
+serde-dynamic-string = { path = "core/serde-dynamic-string" }
+wrapping = { path = "core/wrapping", package = "graphql-wrapping-types" }
 
 [profile.bench]
 strip = "none"

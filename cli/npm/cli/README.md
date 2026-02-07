@@ -1,32 +1,32 @@
-# Grafbase
+# Lattice
 
-The Grafbase CLI
+The Lattice CLI
 
 ## Usage
 
 ```
-The Grafbase command line interface
+The Lattice command line interface
 
 USAGE:
-    grafbase [OPTIONS] <SUBCOMMAND>
+    lattice [OPTIONS] <SUBCOMMAND>
 
 OPTIONS:
     -h, --help       Print help information
     -V, --version    Print version information
 
 SUBCOMMANDS:
-    dev          Start the Grafbase local development server
+    dev          Start the Lattice local development server
     completions  Output completions for the chosen shell to use, write the output to the appropriate location for your shell
-    init         Sets up the current or a new project for Grafbase
-    login        Log in to your Grafbase account
-    logout       Log out of your Grafbase account
+    init         Sets up the current or a new project for Lattice
+    login        Log in to your Lattice account
+    logout       Log out of your Lattice account
     create       Set up and deploy a new project
     deploy       Deploy your project
     link         Connect a local project to a remote project
     unlink       Disconnect a local project from a remote project
     logs         Tail logs from a standalone graph
-    start        Start Grafbase in production mode
-    build        Build the Grafbase project in advance to avoid the resolver build step in the start command
+    start        Start Lattice in production mode
+    build        Build the Lattice project in advance to avoid the resolver build step in the start command
     introspect   Introspect a graph and print its schema
     subgraphs    List subgraphs
     schema       Fetch a federated graph or a subgraph
@@ -41,7 +41,7 @@ SUBCOMMANDS:
 Output completions for the chosen shell. to use, write the output to the appropriate location for your shell
 
 ```
-Usage: grafbase completions <COMMAND>
+Usage: lattice completions <COMMAND>
 
 Commands:
   bash        Generate completions for bash
@@ -53,15 +53,15 @@ Commands:
 
 ### `dev`
 
-Start the Grafbase local development server
+Start the Lattice local development server
 
 ```
-Usage: grafbase dev [OPTIONS]
+Usage: lattice dev [OPTIONS]
 
 Commands:
   -p, --port <PORT>                                                 Use a specific port
   -s, --search                                                      If a given port is unavailable, search for another
-      --disable-watch                                               Do not listen for schema changes and reload
+      --disable-watch                                                Do not listen for schema changes and reload
       --log-level-functions <FUNCTION_LOG_LEVEL>                    Log level to print from function invocations, defaults to 'log-level' [possible values: none, error, warn, info, debug]
       --log-level-graphql-operations <GRAPHQL_OPERATION_LOG_LEVEL>  Log level to print for GraphQL operations, defaults to 'log-level' [possible values: none, error, warn, info, debug]
       --log-level-fetch-requests <FETCH_REQUEST_LOG_LEVEL>          Log level to print for fetch requests, defaults to 'log-level' [possible values: none, error, warn, info, debug]
@@ -70,10 +70,10 @@ Commands:
 
 ### `init`
 
-Sets up the current or a new project for Grafbase
+Sets up the current or a new project for Lattice
 
 ```
-Usage: grafbase init [OPTIONS] [NAME]
+Usage: lattice init [OPTIONS] [NAME]
 
 Arguments:
   [NAME]
@@ -96,7 +96,7 @@ Options:
 Set up and deploy a new project
 
 ```
-Usage: grafbase create [OPTIONS]
+Usage: lattice create [OPTIONS]
 
 Options:
   -n, --name <NAME>       The name to use for the new project
@@ -106,7 +106,7 @@ Options:
 ### `link`
 
 ```
-Usage: grafbase link [OPTIONS]
+Usage: lattice link [OPTIONS]
 
 Options:
   -p, --project <PROJECT_ID>  The id of the linked project
@@ -117,7 +117,7 @@ Options:
 Tail logs from a standalone graph
 
 ```
-Usage: grafbase logs [OPTIONS] [PROJECT_BRANCH]
+Usage: lattice logs [OPTIONS] [PROJECT_BRANCH]
 
 Arguments:
   [PROJECT_BRANCH]  The reference to a project: either `{account_slug}/{project_slug}`, `{project_slug}` for the personal account, or a URL to a deployed gateway. Defaults to the linked project if there's one
@@ -129,10 +129,10 @@ Options:
 
 ### `start`
 
-Start Grafbase in production mode
+Start Lattice in production mode
 
 ```
-Usage: grafbase start [OPTIONS]
+Usage: lattice start [OPTIONS]
 
 Options:
   -p, --port <PORT>                                                 Use a specific port [default: 4000]
@@ -145,10 +145,10 @@ Options:
 
 ### `build`
 
-Build the Grafbase project in advance to avoid the resolver build step in the start command
+Build the Lattice project in advance to avoid the resolver build step in the start command
 
 ```
-    Usage: grafbase build [OPTIONS]
+    Usage: lattice build [OPTIONS]
 
 Options:
       --parallelism <PARALLELISM>  Number of resolver builds running in parallel
@@ -159,7 +159,7 @@ Options:
 Introspect a graph and print its schema
 
 ```
-    Usage: grafbase introspect [OPTIONS] [URL]
+    Usage: lattice introspect [OPTIONS] [URL]
 
 Arguments:
   [URL]  GraphQL URL to introspect
@@ -174,7 +174,7 @@ Options:
 List all subgraphs for a project
 
 ```
-Usage: grafbase subgraphs <PROJECT_REF>
+Usage: lattice subgraphs <PROJECT_REF>
 
 Arguments:
   <PROJECT_REF>  Project reference following the format "account/project@branch"
@@ -185,7 +185,7 @@ Arguments:
 Fetch a federated graph or a subgraph schema
 
 ```
-    Usage: grafbase schema [OPTIONS] <PROJECT_REF>
+    Usage: lattice schema [OPTIONS] <PROJECT_REF>
 
 Arguments:
   <PROJECT_REF>  Project reference following the format "account/project@branch"
@@ -199,7 +199,7 @@ Options:
 Publish a subgraph schema
 
 ```
-Usage: grafbase publish [OPTIONS] --name <SUBGRAPH_NAME> --url <URL> <--dev|PROJECT_REF> <--dev|--schema <SCHEMA_PATH>>
+Usage: lattice publish [OPTIONS] --name <SUBGRAPH_NAME> --url <URL> <--dev|PROJECT_REF> <--dev|--schema <SCHEMA_PATH>>
 
 Arguments:
   [PROJECT_REF]  Project reference following the format "account/project@branch"
@@ -218,7 +218,7 @@ Options:
 Check a graph for validation, composition and breaking change errors
 
 ```
-Usage: grafbase check [OPTIONS] <PROJECT_REF>
+Usage: lattice check [OPTIONS] <PROJECT_REF>
 
 Arguments:
   <PROJECT_REF>  Project reference following the format "account/project@branch"

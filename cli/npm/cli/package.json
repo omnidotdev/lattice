@@ -1,23 +1,23 @@
 {
-  "name": "grafbase",
+  "name": "lattice",
   "version": "0.80.0",
-  "description": "The Grafbase command line interface",
+  "description": "The Lattice command line interface",
   "keywords": [
-    "grafbase"
+    "lattice"
   ],
-  "homepage": "https://grafbase.com",
+  "homepage": "https://lattice.omni.dev",
   "bugs": {
-    "url": "https://github.com/grafbase/grafbase/issues"
+    "url": "https://github.com/omnidotdev/lattice/issues"
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/grafbase/grafbase",
+    "url": "https://github.com/omnidotdev/lattice",
     "directory": "cli"
   },
   "license": "Apache-2.0",
   "bin": {
-    "grafbase": "grafbase",
-    "gb": "grafbase"
+    "lattice": "lattice",
+    "gb": "lattice"
   },
   "scripts": {
     "postinstall": "node ./postinstall.js"
@@ -27,10 +27,10 @@
     "jest": "29.7.0"
   },
   "optionalDependencies": {
-    "@grafbase/cli-aarch64-apple-darwin": "^0.80.0",
-    "@grafbase/cli-x86_64-apple-darwin": "^0.80.0",
-    "@grafbase/cli-x86_64-pc-windows-msvc": "^0.80.0",
-    "@grafbase/cli-x86_64-unknown-linux-musl": "^0.80.0",
-    "@grafbase/cli-aarch64-unknown-linux-musl": "^0.80.0"
+    "@omnidotdev/cli-aarch64-apple-darwin": "^0.80.0",
+    "@omnidotdev/cli-x86_64-apple-darwin": "^0.80.0",
+    "@omnidotdev/cli-x86_64-pc-windows-msvc": "^0.80.0",
+    "@omnidotdev/cli-x86_64-unknown-linux-musl": "^0.80.0",
+    "@omnidotdev/cli-aarch64-unknown-linux-musl": "^0.80.0"
   }
 }

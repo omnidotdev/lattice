@@ -1,6 +1,6 @@
 # Lattice
 
-Omni's GraphQL federation gateway - a fork of [Grafbase](https://github.com/grafbase/grafbase) preserving standalone graph capabilities, TypeScript resolvers, and native data source connectors.
+Omni's GraphQL federation gateway. Originally forked from [the upstream gateway project](https://github.com/grafbase/grafbase).
 
 ## Quick Start
 
@@ -26,4 +26,4 @@ docker run -p 4000:4000 ghcr.io/omnidotdev/lattice:latest
 
 ## License
 
-MPL-2.0 (inherited from Grafbase)
+MIT

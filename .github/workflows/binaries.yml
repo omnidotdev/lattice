@@ -1,4 +1,4 @@
-name: cli
+name: Binaries 🏗️
 
 on:
   workflow_dispatch:
@@ -7,7 +7,7 @@ on:
       - 'main'
     tags:
       - 'gateway-*'
-      - 'grafbase-*'
+      - 'lattice-cli-*'
 
 permissions:
   # Allow checks read
@@ -20,14 +20,12 @@ permissions:
   issues: write
 
 env:
-  GRAFBASE_SKIP_ASSET_VERSION_CHECK: 'true'
+  LATTICE_SKIP_ASSET_VERSION_CHECK: 'true'
   CARGO_INCREMENTAL: 0
   CARGO_PROFILE_DEV_DEBUG: 0
   CARGO_PROFILE_TEST_DEBUG: 0
   CARGO_TERM_COLOR: 'always'
   DO_NOT_TRACK: 1
-  GRAFBASE_RUDDERSTACK_WRITE_KEY: ${{ secrets.GRAFBASE_RUDDERSTACK_WRITE_KEY }}
-  GRAFBASE_RUDDERSTACK_DATAPLANE_URL: ${{ secrets.GRAFBASE_RUDDERSTACK_DATAPLANE_URL }}
   CLI_RELEASE_CLOUDFLARE_R2_ENDPOINT_URL: https://d267a8ab95268b272f5147e8939c9d38.r2.cloudflarestorage.com
   CLI_RELEASE_CLOUDFLARE_R2_PUBLIC_URL: https://pub-b0013effd6614b32a4fb9bf338b90658.r2.dev
   CLI_RELEASE_CLOUDFLARE_R2_BUCKET_NAME: cli-releases
@@ -38,14 +36,16 @@ concurrency:
 
 jobs:
   detect-change-type:
+    name: Detect changes 🔍
     runs-on: ubicloud-standard-2
+    timeout-minutes: 30
     outputs:
       build: ${{ steps.filter.outputs.build }}
     steps:
-      - name: Checkout Repository
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Path filter check
+      - name: Check path filter
         uses: dorny/paths-filter@v3
         id: filter
         with:
@@ -60,43 +60,39 @@ jobs:
               - '!**/*.md'
 
   lint:
-    name: 'Lint'
+    name: Lint 📝
     needs: [detect-change-type]
+    timeout-minutes: 30
     if: ${{ needs.detect-change-type.outputs.build == 'true' || startsWith(github.ref, 'refs/tags/') }}
     runs-on: ubicloud-standard-8
     steps:
       - name: Get sources
         uses: actions/checkout@v4
 
-      - name: Rust job init
+      - name: Initialize Rust job
         uses: ./.github/actions/init_rust_job
         with:
           platform: linux
 
-      - name: Prepare Grafbase assets
-        uses: ./.github/actions/cli_assets
-
-      - name: Lint
+      - name: Run lint
         uses: ./.github/actions/lint
 
   test:
-    name: 'Test'
+    name: Test 🦀
     needs: [lint]
+    timeout-minutes: 60
     if: ${{ needs.detect-change-type.outputs.build == 'true' || startsWith(github.ref, 'refs/tags/') }}
     runs-on: ubicloud-standard-8
     steps:
       - name: Get sources
         uses: actions/checkout@v4
 
-      - name: Rust job init
+      - name: Initialize Rust job
         uses: ./.github/actions/init_rust_job
         with:
           platform: linux
 
-      - name: Prepare Grafbase assets
-        uses: ./.github/actions/cli_assets
-
-      - name: Test
+      - name: Run tests
         uses: ./.github/actions/test
         with:
           dockerhub-username: ${{ secrets.DOCKERHUB_USERNAME }}
@@ -104,17 +100,17 @@ jobs:
           datadog-api-key: ${{ secrets.DATADOG_API_KEY }}
 
   individual-builds:
+    name: Build individual packages 🔨
     needs: [detect-change-type]
+    timeout-minutes: 30
     if: ${{ needs.detect-change-type.outputs.build == 'true' || startsWith(github.ref, 'refs/tags/') }}
     strategy:
       fail-fast: false
       matrix:
         package:
           [
-            grafbase-local-common,
-            grafbase-local-backend,
-            grafbase,
-            grafbase-gateway,
+            lattice-cli,
+            lattice-gateway,
             federated-server
           ]
     runs-on: ubicloud-standard-8
@@ -122,16 +118,12 @@ jobs:
       - name: Get sources
         uses: actions/checkout@v4
 
-      - name: Rust job init
+      - name: Initialize Rust job
         uses: ./.github/actions/init_rust_job
         with:
           platform: linux
 
-      - name: Build assets
-        if: ${{ matrix.package != 'grafbase-gateway' }}
-        uses: ./.github/actions/cli_assets
-
-      - name: Individual package build
+      - name: Build individual package
         shell: bash
         run: |
           set -euo pipefail
@@ -141,15 +133,17 @@ jobs:
           # See: https://github.com/rust-lang/cargo/issues/4463
           cargo check --all-features --package ${{ matrix.package }}
 
-      - name: Individual package without lambda
-        if: ${{ matrix.package == 'grafbase-gateway' }}
+      - name: Build individual package without lambda
+        if: ${{ matrix.package == 'lattice-gateway' }}
         shell: bash
         run: |
           set -euo pipefail
           cargo check --package ${{ matrix.package }}
 
   docker-gateway:
+    name: Build & push Docker image 🐳
     needs: [test]
+    timeout-minutes: 30
     if: ${{ needs.detect-change-type.outputs.build == 'true' || startsWith(github.ref, 'refs/tags/') }}
     runs-on: ubicloud-standard-16
     permissions:
@@ -160,37 +154,39 @@ jobs:
       - name: Get sources
         uses: actions/checkout@v4
 
-      - name: Login to GitHub Container Registry
+      - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build docker images
+      - name: Build Docker images
         run: |
           # Re-use the latest layers if possible
-          docker pull ghcr.io/grafbase/gateway:latest || true
-          docker build -f gateway/Dockerfile -t ghcr.io/grafbase/gateway:$COMMIT_SHA .
+          docker pull ghcr.io/omnidotdev/lattice-gateway:latest || true
+          docker build -f gateway/Dockerfile -t ghcr.io/omnidotdev/lattice-gateway:$COMMIT_SHA .
 
       - name: Tag latest version
         if: ${{ github.ref == 'refs/heads/main' }}
         run: |
-          docker tag ghcr.io/grafbase/gateway:$COMMIT_SHA ghcr.io/grafbase/gateway:latest
+          docker tag ghcr.io/omnidotdev/lattice-gateway:$COMMIT_SHA ghcr.io/omnidotdev/lattice-gateway:latest
 
       - name: Tag released gateway version
         if: ${{ startsWith(github.ref, 'refs/tags') && startsWith(github.ref_name, 'gateway-') }}
         run: |
-          docker tag ghcr.io/grafbase/gateway:$COMMIT_SHA ghcr.io/grafbase/gateway:$(echo "$REF" | sed -e "s/^refs\/tags\/gateway-//")
+          docker tag ghcr.io/omnidotdev/lattice-gateway:$COMMIT_SHA ghcr.io/omnidotdev/lattice-gateway:$(echo "$REF" | sed -e "s/^refs\/tags\/gateway-//")
         env:
           REF: ${{ github.ref }}
 
-      - name: Push docker image
+      - name: Push Docker image
         run: |
-          docker push --all-tags ghcr.io/grafbase/gateway
+          docker push --all-tags ghcr.io/omnidotdev/lattice-gateway
 
   linux:
+    name: Build Linux binaries 🐧
     needs: [test]
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
@@ -212,27 +208,24 @@ jobs:
       - name: Get sources
         uses: actions/checkout@v4
 
-      - name: Rust job init
+      - name: Initialize Rust job
         uses: ./.github/actions/init_rust_job
         with:
           platform: ${{ matrix.archs.platform }}
-
-      - name: Prepare Grafbase assets
-        uses: ./.github/actions/cli_assets
 
       - name: Install musl
         run: |
           sudo apt update
           sudo apt install musl
 
-      - name: Build grafbase release
+      - name: Build lattice-cli release
         run: |
           cd cli
-          cargo build --release -p grafbase --target ${{ matrix.archs.target }} --timings
+          cargo build --release -p lattice-cli --target ${{ matrix.archs.target }} --timings
 
-      - name: Build gateway release
+      - name: Build lattice-gateway release
         run: |
-          cargo build --release -p grafbase-gateway --target ${{ matrix.archs.target }}
+          cargo build --release -p lattice-gateway --target ${{ matrix.archs.target }}
 
       - uses: actions/upload-artifact@v4
         with:
@@ -240,28 +233,28 @@ jobs:
           path: target/cargo-timings/cargo-timing.html
 
       - if: ${{ github.event_name == 'pull_request' && matrix.archs.runner != 'ubicloud-standard-8-arm' }}
-        name: Upload the binaries of the change to R2
+        name: Upload binaries to R2
         run: |
           aws s3api put-object \
             --endpoint-url $CLI_RELEASE_CLOUDFLARE_R2_ENDPOINT_URL \
             --bucket $CLI_RELEASE_CLOUDFLARE_R2_BUCKET_NAME \
-            --key ${GITHUB_SHA}/${{ matrix.archs.target }}/grafbase \
-            --body target/${{ matrix.archs.target }}/release/grafbase
+            --key ${GITHUB_SHA}/${{ matrix.archs.target }}/lattice-cli \
+            --body target/${{ matrix.archs.target }}/release/lattice-cli
 
           aws s3api put-object \
             --endpoint-url $CLI_RELEASE_CLOUDFLARE_R2_ENDPOINT_URL \
             --bucket $CLI_RELEASE_CLOUDFLARE_R2_BUCKET_NAME \
-            --key ${GITHUB_SHA}/${{ matrix.archs.target }}/grafbase-gateway \
-            --body target/${{ matrix.archs.target }}/release/grafbase-gateway
+            --key ${GITHUB_SHA}/${{ matrix.archs.target }}/lattice-gateway \
+            --body target/${{ matrix.archs.target }}/release/lattice-gateway
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.R2_RELEASES_BUCKET_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_RELEASES_BUCKET_SECRET_ACCESS_KEY }}
 
-      - name: Parse version tag for grafbase
-        if: startsWith(github.ref, 'refs/tags/') && startsWith(github.ref_name, 'grafbase-')
+      - name: Parse version tag for lattice-cli
+        if: startsWith(github.ref, 'refs/tags/') && startsWith(github.ref_name, 'lattice-cli-')
         run: |
           VERSION_BUMP="${{ github.ref_name }}"
-          VERSION_BUMP=${VERSION_BUMP//grafbase-} # remove the grafbase prefix from the tag
+          VERSION_BUMP=${VERSION_BUMP//lattice-cli-} # remove the lattice-cli prefix from the tag
           echo VERSION_BUMP=${VERSION_BUMP} >> $GITHUB_ENV
 
       - name: Parse version tag for gateway
@@ -271,13 +264,13 @@ jobs:
           VERSION_BUMP=${VERSION_BUMP//gateway-} # remove the gateway prefix from the tag
           echo VERSION_BUMP=${VERSION_BUMP} >> $GITHUB_ENV
 
-      - if: startsWith(github.ref, 'refs/tags/') && startsWith(github.ref_name, 'grafbase-')
-        name: Upload grafbase binaries
+      - if: startsWith(github.ref, 'refs/tags/') && startsWith(github.ref_name, 'lattice-cli-')
+        name: Upload lattice-cli binaries
         uses: actions/upload-artifact@v4
         with:
           name: ${{ env.VERSION_BUMP }}-${{ matrix.archs.platform }}
           path: |
-            target/${{ matrix.archs.target }}/release/grafbase
+            target/${{ matrix.archs.target }}/release/lattice-cli
 
       - if: startsWith(github.ref, 'refs/tags/') && startsWith(github.ref_name, 'gateway-')
         name: Upload gateway binaries
@@ -285,7 +278,7 @@ jobs:
         with:
           name: gateway-${{ env.VERSION_BUMP }}-${{ matrix.archs.platform }}
           path: |
-            target/${{ matrix.archs.target }}/release/grafbase-gateway
+            target/${{ matrix.archs.target }}/release/lattice-gateway
 
       - name: Build gateway lambda release
         shell: bash
@@ -295,7 +288,7 @@ jobs:
             BUILD_PROFILE=lambda
           fi
           echo "Building lambda with $BUILD_PROFILE profile"
-          cargo build --profile $BUILD_PROFILE -p grafbase-gateway --target ${{ matrix.archs.target }} --features lambda
+          cargo build --profile $BUILD_PROFILE -p lattice-gateway --target ${{ matrix.archs.target }} --features lambda
 
       - if: ${{ github.event_name == 'pull_request' && matrix.archs.runner != 'ubicloud-standard-8-arm' }}
         name: Upload lambda gateway binary to R2
@@ -307,8 +300,8 @@ jobs:
           aws s3api put-object \
             --endpoint-url $CLI_RELEASE_CLOUDFLARE_R2_ENDPOINT_URL \
             --bucket $CLI_RELEASE_CLOUDFLARE_R2_BUCKET_NAME \
-            --key ${GITHUB_SHA}/${{ matrix.archs.target }}/grafbase-gateway-lambda \
-            --body target/${{ matrix.archs.target }}/$BUILD_PROFILE/grafbase-gateway
+            --key ${GITHUB_SHA}/${{ matrix.archs.target }}/lattice-gateway-lambda \
+            --body target/${{ matrix.archs.target }}/$BUILD_PROFILE/lattice-gateway
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.R2_RELEASES_BUCKET_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_RELEASES_BUCKET_SECRET_ACCESS_KEY }}
@@ -319,25 +312,26 @@ jobs:
         with:
           name: gateway-lambda-${{ env.VERSION_BUMP }}-${{ matrix.archs.platform }}
           path: |
-            target/${{ matrix.archs.target }}/lambda/grafbase-gateway
+            target/${{ matrix.archs.target }}/lambda/lattice-gateway
+
   windows:
+    name: Build Windows binaries 🪟
     needs: [test]
+    timeout-minutes: 60
     runs-on: windows-latest-8-cores
     steps:
       - name: Get sources
         uses: actions/checkout@v4
-      - name: Rust job init
+
+      - name: Initialize Rust job
         uses: ./.github/actions/init_rust_job
         with:
           platform: windows
 
       - uses: ilammy/setup-nasm@v1
 
-      - name: Prepare Grafbase assets
-        uses: ./.github/actions/cli_assets
-
       - if: ${{ !startsWith(github.ref, 'refs/tags/') }}
-        name: Test
+        name: Run tests
         uses: ./.github/actions/test
         with:
           with-integration-tests: 'false'
@@ -345,34 +339,36 @@ jobs:
           dockerhub-token: ${{ secrets.DOCKERHUB_TOKEN }}
           datadog-api-key: ${{ secrets.DATADOG_API_KEY }}
 
-      - name: Build grafbase release
+      - name: Build lattice-cli release
         shell: bash
         run: |
           cd cli
-          cargo build --release -p grafbase --target x86_64-pc-windows-msvc --timings
+          cargo build --release -p lattice-cli --target x86_64-pc-windows-msvc --timings
 
       - uses: actions/upload-artifact@v4
         with:
           name: windows-release-timings.html
           path: target/cargo-timings/cargo-timing.html
 
-      - name: Parse version tag for grafbase
-        if: startsWith(github.ref, 'refs/tags/') && startsWith(github.ref_name, 'grafbase-')
+      - name: Parse version tag for lattice-cli
+        if: startsWith(github.ref, 'refs/tags/') && startsWith(github.ref_name, 'lattice-cli-')
         shell: bash
         run: |
           VERSION_BUMP="${{ github.ref_name }}"
-          VERSION_BUMP=${VERSION_BUMP//grafbase-} # remove the grafbase prefix from the tag
+          VERSION_BUMP=${VERSION_BUMP//lattice-cli-} # remove the lattice-cli prefix from the tag
           echo VERSION_BUMP=${VERSION_BUMP} >> $GITHUB_ENV
 
-      - if: startsWith(github.ref, 'refs/tags/') && startsWith(github.ref_name, 'grafbase-')
-        name: Upload grafbase x86_64-pc-windows-msvc binary
+      - if: startsWith(github.ref, 'refs/tags/') && startsWith(github.ref_name, 'lattice-cli-')
+        name: Upload lattice-cli x86_64-pc-windows-msvc binary
         uses: actions/upload-artifact@v4
         with:
           name: ${{ env.VERSION_BUMP }}-x86_64-pc-windows-msvc
-          path: target/x86_64-pc-windows-msvc/release/grafbase.exe
+          path: target/x86_64-pc-windows-msvc/release/lattice-cli.exe
 
   darwin:
+    name: Build macOS binaries 🍎
     needs: [test]
+    timeout-minutes: 60
     runs-on: macos-latest-xlarge
     strategy:
       fail-fast: false
@@ -382,16 +378,13 @@ jobs:
       - name: Get sources
         uses: actions/checkout@v4
 
-      - name: Rust job init
+      - name: Initialize Rust job
         uses: ./.github/actions/init_rust_job
         with:
           platform: macos
 
-      - name: Prepare Grafbase assets
-        uses: ./.github/actions/cli_assets
-
       - if: ${{ !startsWith(github.ref, 'refs/tags/') && matrix.target == 'x86_64-apple-darwin' }}
-        name: Test
+        name: Run tests
         uses: ./.github/actions/test
         with:
           with-integration-tests: 'false'
@@ -399,24 +392,24 @@ jobs:
           dockerhub-token: ${{ secrets.DOCKERHUB_TOKEN }}
           datadog-api-key: ${{ secrets.DATADOG_API_KEY }}
 
-      - name: Build grafbase ${{ matrix.target }} release
+      - name: Build lattice-cli ${{ matrix.target }} release
         run: |
-          cargo build --release -p grafbase --target ${{ matrix.target }} --timings
+          cargo build --release -p lattice-cli --target ${{ matrix.target }} --timings
 
-      - name: Build gateway ${{ matrix.target }} release
+      - name: Build lattice-gateway ${{ matrix.target }} release
         run: |
-          cargo build --release -p grafbase-gateway --target ${{ matrix.target }}
+          cargo build --release -p lattice-gateway --target ${{ matrix.target }}
 
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.target }}-release-timings.html
           path: target/cargo-timings/cargo-timing.html
 
-      - name: Parse version tag for grafbase
-        if: startsWith(github.ref, 'refs/tags/') && startsWith(github.ref_name, 'grafbase-')
+      - name: Parse version tag for lattice-cli
+        if: startsWith(github.ref, 'refs/tags/') && startsWith(github.ref_name, 'lattice-cli-')
         run: |
           VERSION_BUMP="${{ github.ref_name }}"
-          VERSION_BUMP=${VERSION_BUMP//grafbase-} # remove the grafbase prefix from the tag
+          VERSION_BUMP=${VERSION_BUMP//lattice-cli-} # remove the lattice-cli prefix from the tag
           echo VERSION_BUMP=${VERSION_BUMP} >> $GITHUB_ENV
 
       - name: Parse version tag for gateway
@@ -427,31 +420,31 @@ jobs:
           echo VERSION_BUMP=${VERSION_BUMP} >> $GITHUB_ENV
 
       - if: ${{ github.event_name == 'pull_request' && matrix.archs.runner != 'ubicloud-standard-8-arm' }}
-        name: Upload the binaries of the change to R2
+        name: Upload binaries to R2
         run: |
           curl "https://awscli.amazonaws.com/AWSCLIV2.pkg" -o "AWSCLIV2.pkg"
           sudo installer -pkg AWSCLIV2.pkg -target /
           aws s3api put-object \
             --endpoint-url $CLI_RELEASE_CLOUDFLARE_R2_ENDPOINT_URL \
             --bucket $CLI_RELEASE_CLOUDFLARE_R2_BUCKET_NAME \
-            --key ${GITHUB_SHA}/${{ matrix.target }}/grafbase \
-            --body target/${{ matrix.target }}/release/grafbase
+            --key ${GITHUB_SHA}/${{ matrix.target }}/lattice-cli \
+            --body target/${{ matrix.target }}/release/lattice-cli
 
           aws s3api put-object \
             --endpoint-url $CLI_RELEASE_CLOUDFLARE_R2_ENDPOINT_URL \
             --bucket $CLI_RELEASE_CLOUDFLARE_R2_BUCKET_NAME \
-            --key ${GITHUB_SHA}/${{ matrix.target }}/grafbase-gateway \
-            --body target/${{ matrix.target }}/release/grafbase-gateway
+            --key ${GITHUB_SHA}/${{ matrix.target }}/lattice-gateway \
+            --body target/${{ matrix.target }}/release/lattice-gateway
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.R2_RELEASES_BUCKET_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_RELEASES_BUCKET_SECRET_ACCESS_KEY }}
 
-      - if: startsWith(github.ref, 'refs/tags/') && startsWith(github.ref_name, 'grafbase-')
-        name: Upload grafbase ${{ matrix.target }} binary
+      - if: startsWith(github.ref, 'refs/tags/') && startsWith(github.ref_name, 'lattice-cli-')
+        name: Upload lattice-cli ${{ matrix.target }} binary
         uses: actions/upload-artifact@v4
         with:
           name: ${{ env.VERSION_BUMP }}-${{ matrix.target }}
-          path: target/${{ matrix.target }}/release/grafbase
+          path: target/${{ matrix.target }}/release/lattice-cli
 
       - if: startsWith(github.ref, 'refs/tags/') && startsWith(github.ref_name, 'gateway-')
         name: Upload gateway ${{ matrix.target }} binary
@@ -459,12 +452,14 @@ jobs:
         with:
           name: gateway-${{ env.VERSION_BUMP }}-${{ matrix.target }}
           path: |
-            target/${{ matrix.target }}/release/grafbase-gateway
+            target/${{ matrix.target }}/release/lattice-gateway
 
-  release-grafbase:
+  release-lattice-cli:
+    name: Release lattice-cli 🏗️
     needs: [windows, linux, darwin]
-    if: startsWith(github.ref, 'refs/tags/') && startsWith(github.ref_name, 'grafbase-')
-    uses: ./.github/workflows/grafbase-partial-release.yml
+    timeout-minutes: 30
+    if: startsWith(github.ref, 'refs/tags/') && startsWith(github.ref_name, 'lattice-cli-')
+    uses: ./.github/workflows/cli-release.yml
     with:
       draft: false
       tag: ${{ github.ref_name }}
@@ -477,9 +472,11 @@ jobs:
       CLOUDFLARE_ASSETS_R2_SECRET_ACCESS_KEY: ${{ secrets.CLOUDFLARE_ASSETS_R2_SECRET_ACCESS_KEY }}
 
   release-gateway:
+    name: Release lattice-gateway 🏗️
     needs: [windows, linux, darwin]
+    timeout-minutes: 30
     if: startsWith(github.ref, 'refs/tags/') && startsWith(github.ref_name, 'gateway-')
-    uses: ./.github/workflows/gateway-partial-release.yml
+    uses: ./.github/workflows/gateway-release.yml
     with:
       draft: false
       tag: ${{ github.ref_name }}
@@ -492,11 +489,13 @@ jobs:
       CLOUDFLARE_ASSETS_R2_SECRET_ACCESS_KEY: ${{ secrets.CLOUDFLARE_ASSETS_R2_SECRET_ACCESS_KEY }}
 
   after-build:
+    name: Verify build status 🔍
     # This job is responsible for reacting to build success or failure. It must
     # happen after the builds, hence the `needs`. But it must not be skipped
     # when the builds are cancelled or fail (hence the `if: ${{ always() }}`).
     needs: [linux, darwin]
     runs-on: ubicloud-standard-2
+    timeout-minutes: 30
     if: ${{ always() }}
     steps:
       - name: Check that the builds succeeded
@@ -504,11 +503,11 @@ jobs:
         if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
 
       - name: Report release failures
-        if: ${{ failure() && startsWith(github.ref, 'refs/tags/') && startsWith(github.ref_name, 'grafbase-') }}
+        if: ${{ failure() && startsWith(github.ref, 'refs/tags/') && startsWith(github.ref_name, 'lattice-cli-') }}
         uses: ravsamhq/notify-slack-action@v2
         with:
           status: ${{ job.status }}
-          notification_title: '({workflow}) grafbase release failed'
+          notification_title: '({workflow}) lattice-cli release failed'
           message_format: 'Check the link below to see what failed.'
           footer: '<{run_url}|View Run>'
         env:

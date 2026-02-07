@@ -1,18 +1,16 @@
-name: rust-prs
+name: PR 🧪
 
 on:
   workflow_dispatch:
   pull_request:
 
 env:
-  GRAFBASE_SKIP_ASSET_VERSION_CHECK: 'true'
+  LATTICE_SKIP_ASSET_VERSION_CHECK: 'true'
   CARGO_INCREMENTAL: 0
   CARGO_PROFILE_DEV_DEBUG: 0
   CARGO_PROFILE_TEST_DEBUG: 0
   CARGO_TERM_COLOR: 'always'
   DO_NOT_TRACK: 1
-  GRAFBASE_RUDDERSTACK_WRITE_KEY: ${{ secrets.GRAFBASE_RUDDERSTACK_WRITE_KEY }}
-  GRAFBASE_RUDDERSTACK_DATAPLANE_URL: ${{ secrets.GRAFBASE_RUDDERSTACK_DATAPLANE_URL }}
   RUST_BACKTRACE: 1
 
 concurrency:
@@ -21,68 +19,34 @@ concurrency:
 
 jobs:
   what-changed:
+    name: Detect changes 🔍
     runs-on: ubicloud-standard-2
+    timeout-minutes: 10
     outputs:
-      rust: ${{ steps.what-rust-changed.outputs.rust }}
-      grafbase-docker: ${{ steps.paths-changed.outputs.grafbase-docker }}
+      rust: ${{ steps.paths-changed.outputs.rust }}
       gateway-docker: ${{ steps.paths-changed.outputs.gateway-docker }}
     steps:
-      - name: Checkout Repository
+      - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          # TODO: Figure out how to not make this zero
-          # Seems like if it's not zero you dont get branches
-          fetch-depth: 0
-
-      - name: Install rust
-        uses: ./.github/actions/install-rust
-
-      # If you're iterating on this you may want to change this to a cargo install
-      # while you work
-      - name: Install what-rust-changed
-        uses: ./.github/actions/install-what-rust-changed
-        with:
-          version: v0.1.0
-
-      - name: Run what-rust-changed
-        id: what-rust-changed
-        shell: bash
-        env:
-          WHAT_RUST_CHANGED_CONFIG: .github/what-rust-changed.toml
-        # TODO: Much of this script could be moved into the what-rust-changed code
-        # (or it could have its own action) but don't have time for that right now.
-        run: |
-          set -euo pipefail
-          HEAD_REF="$(git rev-parse HEAD)"
-          BASE_REF="remotes/origin/${GITHUB_BASE_REF:-main}"
-          echo "Head: $HEAD_REF"
-          echo "Base: $BASE_REF"
-          MERGE_BASE=$(git merge-base $BASE_REF $HEAD_REF)
-          echo "Merge Base: $MERGE_BASE"
-          git checkout $MERGE_BASE
-          cargo metadata > /tmp/base.metadata.json
-          # Temp hack to get CI to pass
-          git checkout -- Cargo.lock
-          git checkout $HEAD_REF
-          cargo metadata --locked > /tmp/target.metadata.json
-          CHANGED_FILES=$(git diff --no-commit-id --name-only -r $MERGE_BASE HEAD)
-          CHANGES=$(echo $CHANGED_FILES | xargs what-rust-changed /tmp/base.metadata.json /tmp/target.metadata.json)
-          echo "rust=$CHANGES" >> "$GITHUB_OUTPUT"
-          echo "Done.  Output Contents:"
-          echo ""
-          cat $GITHUB_OUTPUT
 
       - name: Check paths changed
         uses: dorny/paths-filter@v3
         id: paths-changed
         with:
           filters: |
+            rust:
+              - '**/*.rs'
+              - '**/Cargo.toml'
+              - 'Cargo.lock'
+              - '.github/workflows/rust-prs.yml'
             gateway-docker:
-              - gateway/Dockerfile
+              - 'Dockerfile'
 
   check-format:
+    name: Check format 📝
     needs: [what-changed]
-    if: toJson(fromJson(needs.what-changed.outputs.rust).changed-packages) != '[]'
+    timeout-minutes: 30
+    if: needs.what-changed.outputs.rust == 'true'
     runs-on: ubicloud-standard-2
     steps:
       - name: Get sources
@@ -93,15 +57,16 @@ jobs:
         with:
           components: rustfmt
 
-      - name: cargo fmt
+      - name: Check formatting
         shell: bash
         run: |
           cargo fmt --check
 
   example-component:
-    if: |
-      toJson(fromJson(needs.what-changed.outputs.rust).changed-packages) != '[]'
+    name: Build WASI components 🧩
+    if: needs.what-changed.outputs.rust == 'true'
     needs: [what-changed]
+    timeout-minutes: 30
     runs-on: ubicloud-standard-8
     steps:
       - name: Get sources
@@ -115,42 +80,23 @@ jobs:
         run: |
           cargo binstall cargo-component --secure -y
 
-      - name: Build the WASI components for tests
+      - name: Build WASI components for tests
         shell: bash
-        working-directory: engine/crates/wasi-component-loader/examples
+        working-directory: core/wasi-component-loader/examples
         run: cargo component build
 
       - uses: actions/upload-artifact@v4
         with:
           name: example-component
-          path: engine/crates/wasi-component-loader/examples/target/wasm32-wasip1/debug/*.wasm
-          retention-days: 5
-
-  cli-assets:
-    if: contains(fromJson(needs.what-changed.outputs.rust).changed-packages, 'grafbase')
-    needs: [what-changed]
-    runs-on: ubicloud-standard-8
-    steps:
-      - name: Get sources
-        uses: actions/checkout@v4
-
-      - name: Build assets
-        uses: ./.github/actions/cli_assets
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: cli-app-dist
-          path: packages/cli-app/dist
+          path: core/wasi-component-loader/examples/target/wasm32-wasip1/debug/*.wasm
           retention-days: 5
 
   builds:
-    needs: [what-changed, example-component, cli-assets]
-    # We need the cancelled & result checks of this if to make sure that we
-    # run even if some of our needs were skipped.
-    # In particular we need `cancelled()` because `always()` (the other way of doing this)
-    # makes this job uncancellable - which is not great.
+    name: Build & test 🦀
+    needs: [what-changed, example-component]
+    timeout-minutes: 60
     if: |
-      toJson(fromJson(needs.what-changed.outputs.rust).changed-packages) != '[]'
+      needs.what-changed.outputs.rust == 'true'
       && !(cancelled())
       && !(contains(needs.*.result, 'failure'))
     strategy:
@@ -186,17 +132,9 @@ jobs:
       - name: Get sources
         uses: actions/checkout@v4
 
-      - name: Dump inputs for debugging
-        shell: bash
-        run: |
-          echo ${{ needs.what-changed.outputs.rust }}
-
       - uses: Swatinem/rust-cache@v2
         if: ${{ !startsWith(github.head_ref, 'renovate-') }}
         with:
-          # Our windows & mac runners are hosted by github, so using github for
-          # their cache makes sense.  Buildjet is faster (and offers more storage) for
-          # others though.
           cache-provider: ${{ contains(matrix.platform.target, 'linux') && 'buildjet' || 'github' }}
 
       - name: Install Rust
@@ -210,7 +148,6 @@ jobs:
         shell: bash
         run: |
           sudo apt-get install musl musl-tools
-          # This seems like a horrible hack that might come back to bite, but lets see!
           sudo ln -s /bin/g++ /bin/musl-g++
           sudo ln -s /bin/g++ /bin/aarch64-linux-musl-g++
 
@@ -219,7 +156,6 @@ jobs:
         with:
           tool: nextest
 
-      # https://github.com/actions/setup-node/issues/899
       - name: Enable Corepack before setting up Node
         shell: bash
         run: corepack enable
@@ -241,36 +177,20 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: example-component
-          path: engine/crates/wasi-component-loader/examples/target/wasm32-wasip1/debug
-
-      - name: Download pre-built cli-app
-        if: needs.cli-assets.result != 'skipped'
-        uses: actions/download-artifact@v4
-        with:
-          name: cli-app-dist
-          path: packages/cli-app/dist
-
-      # TODO: Add timing reports in here somehow...
+          path: core/wasi-component-loader/examples/target/wasm32-wasip1/debug
 
       - if: runner.os == 'Windows'
         uses: ilammy/setup-nasm@v1
 
-      - name: Build debug binaries
-        if: fromJson(needs.what-changed.outputs.rust).cargo-bin-specs
-        shell: bash
-        run: |
-          cargo build --target ${{ matrix.platform.target }} ${{ fromJson(needs.what-changed.outputs.rust).cargo-bin-specs }}
-
-      - name: Clippy
-        if: fromJson(needs.what-changed.outputs.rust).cargo-build-specs
+      - name: Run clippy
         shell: bash
         run: |
           cargo clippy \
             --locked \
             --target ${{ matrix.platform.target }} \
-            ${{ fromJson(needs.what-changed.outputs.rust).cargo-build-specs }}
+            --workspace
 
-      - name: Login to Docker Hub
+      - name: Log in to Docker Hub
         if: runner.os == 'Linux'
         uses: docker/login-action@v3
         with:
@@ -278,61 +198,30 @@ jobs:
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Start integration-test docker compose
-        if: |
-          contains(fromJson(needs.what-changed.outputs.rust).changed-packages, 'integration-tests')
-          && matrix.platform.target == 'x86_64-unknown-linux-musl'
+        if: matrix.platform.target == 'x86_64-unknown-linux-musl'
         shell: bash
-        working-directory: engine/crates/integration-tests
+        working-directory: core/integration-tests
         run: docker compose up -d
 
       - name: Start gateway docker compose
-        if: |
-          contains(fromJson(needs.what-changed.outputs.rust).changed-packages, 'grafbase-gateway')
-          && matrix.platform.target == 'x86_64-unknown-linux-musl'
+        if: matrix.platform.target == 'x86_64-unknown-linux-musl'
         shell: bash
-        working-directory: gateway/crates/gateway-binary
+        working-directory: core/gateway-binary
         run: docker compose up -d
 
-      # It's kinda useful to get build vs run timings on tests, so splitting out the build from the run
-      # here
-      - name: Build tests (non docker platforms)
-        if: |
-          fromJson(needs.what-changed.outputs.rust).cargo-test-specs
-          && matrix.platform.target != 'x86_64-unknown-linux-musl'
-          && matrix.platform.target != 'x86_64-apple-darwin'
+      - name: Build tests
         shell: bash
         run: |
-          cargo nextest run --target ${{ matrix.platform.target }} --no-run --profile ci ${{ fromJson(needs.what-changed.outputs.rust).cargo-test-specs }}
+          cargo nextest run --target ${{ matrix.platform.target }} --no-run --profile ci --workspace
 
-      - name: Run tests (non docker platforms)
+      - name: Run tests
         id: tests
-        if: |
-          fromJson(needs.what-changed.outputs.rust).cargo-test-specs
-          && matrix.platform.target != 'x86_64-unknown-linux-musl'
-          && matrix.platform.target != 'x86_64-apple-darwin'
         shell: bash
         run: |
-          cargo nextest run --target ${{ matrix.platform.target }} --profile ci ${{ fromJson(needs.what-changed.outputs.rust).cargo-test-specs }}
+          cargo nextest run --target ${{ matrix.platform.target }} --profile ci --workspace
 
-      - name: Build tests (docker platforms)
-        if: |
-          fromJson(needs.what-changed.outputs.rust).cargo-docker-test-specs
-          && matrix.platform.target == 'x86_64-unknown-linux-musl'
-        shell: bash
-        run: |
-          cargo nextest run --target ${{ matrix.platform.target }} --no-run --profile ci ${{ fromJson(needs.what-changed.outputs.rust).cargo-docker-test-specs }}
-
-      - name: Run tests (docker platforms)
-        id: tests_docker
-        if: |
-          fromJson(needs.what-changed.outputs.rust).cargo-docker-test-specs
-          && matrix.platform.target == 'x86_64-unknown-linux-musl'
-        shell: bash
-        run: |
-          cargo nextest run --target ${{ matrix.platform.target }} --profile ci ${{ fromJson(needs.what-changed.outputs.rust).cargo-docker-test-specs }}
-
-      - name: Upload the JUnit files
-        if: ${{ ( success() || failure() ) && !contains(steps.tests.outputs.exitcode, '101') && !contains(steps.tests_docker.outputs.exitcode, '101') && matrix.platform.target != 'x86_64-apple-darwin'}}
+      - name: Upload JUnit files
+        if: ${{ ( success() || failure() ) && !contains(steps.tests.outputs.exitcode, '101') }}
         uses: ./.github/actions/test_upload_datadog
         with:
           api_key: ${{ secrets.DATADOG_API_KEY }}
@@ -340,10 +229,12 @@ jobs:
           service: cli
 
   docker-gateway:
+    name: Build Docker image 🐳
     needs: [what-changed]
+    timeout-minutes: 30
     if: |
       needs.what-changed.outputs.gateway-docker == 'true'
-      || contains(fromJson(needs.what-changed.outputs.rust).changed-packages, 'grafbase-gateway')
+      || needs.what-changed.outputs.rust == 'true'
     runs-on: ubicloud-standard-16
     permissions:
       packages: write
@@ -353,7 +244,7 @@ jobs:
       - name: Get sources
         uses: actions/checkout@v4
 
-      - name: Login to GitHub Container Registry
+      - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
@@ -362,20 +253,18 @@ jobs:
 
       - name: Build Docker image
         run: |
-          # Re-use the latest layers if possible
-          docker pull ghcr.io/grafbase/gateway:latest || true
-          docker build -f gateway/Dockerfile -t ghcr.io/grafbase/gateway:$COMMIT_SHA .
+          docker pull ghcr.io/omnidotdev/lattice-gateway:latest || true
+          docker build -f Dockerfile -t ghcr.io/omnidotdev/lattice-gateway:$COMMIT_SHA .
 
       - name: Push Docker image
         run: |
-          docker push --all-tags ghcr.io/grafbase/gateway
+          docker push --all-tags ghcr.io/omnidotdev/lattice-gateway
 
   after-build-rust:
-    # This job is responsible for reacting to build success or failure. It must
-    # happen after the builds, hence the `needs`. But it must not be skipped
-    # when the builds are cancelled or fail (hence the `if: ${{ always() }}`).
+    name: Verify build status 🔍
     needs: [check-format, builds, docker-gateway]
     runs-on: ubicloud-standard-2
+    timeout-minutes: 30
     if: ${{ always() }}
     steps:
       - name: Check that the builds succeeded

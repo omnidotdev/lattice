@@ -1,0 +1,40 @@
+[package]
+name = "runtime"
+description = "An abstraction over the various Lattice runtime environments"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+homepage.workspace = true
+repository.workspace = true
+keywords.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+anyhow.workspace = true
+async-runtime.workspace = true
+async-trait.workspace = true
+bytes.workspace = true
+derive_more = { workspace = true, features = ["display"] }
+futures-util.workspace = true
+lattice-telemetry.workspace = true
+headers.workspace = true
+http.workspace = true
+secrecy = { workspace = true, features = ["serde"] }
+serde.workspace = true
+serde_json.workspace = true
+strum.workspace = true
+thiserror.workspace = true
+ulid.workspace = true
+tracing.workspace = true
+tracing-futures.workspace = true
+url.workspace = true
+web-time.workspace = true
+common-types.workspace = true
+
+[features]
+test-utils = []
+
+[dev-dependencies]
+tokio = { version = "1.37", features = ["full"]}
