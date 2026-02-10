@@ -43,7 +43,7 @@ jobs:
       build: ${{ steps.filter.outputs.build }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Check path filter
         uses: dorny/paths-filter@v3
@@ -67,7 +67,7 @@ jobs:
     runs-on: ubicloud-standard-8
     steps:
       - name: Get sources
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Initialize Rust job
         uses: ./.github/actions/init_rust_job
@@ -85,7 +85,7 @@ jobs:
     runs-on: ubicloud-standard-8
     steps:
       - name: Get sources
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Initialize Rust job
         uses: ./.github/actions/init_rust_job
@@ -116,7 +116,7 @@ jobs:
     runs-on: ubicloud-standard-8
     steps:
       - name: Get sources
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Initialize Rust job
         uses: ./.github/actions/init_rust_job
@@ -152,7 +152,7 @@ jobs:
       COMMIT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
     steps:
       - name: Get sources
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
@@ -206,7 +206,7 @@ jobs:
     runs-on: ${{ matrix.archs.runner }}
     steps:
       - name: Get sources
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Initialize Rust job
         uses: ./.github/actions/init_rust_job
@@ -321,7 +321,7 @@ jobs:
     runs-on: windows-latest-8-cores
     steps:
       - name: Get sources
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Initialize Rust job
         uses: ./.github/actions/init_rust_job
@@ -376,7 +376,7 @@ jobs:
         target: [aarch64-apple-darwin, x86_64-apple-darwin]
     steps:
       - name: Get sources
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Initialize Rust job
         uses: ./.github/actions/init_rust_job
