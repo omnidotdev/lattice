@@ -6,8 +6,8 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/omnidotdev/lattice/actions/workflows/cli-build.yml">
-    <img alt="CLI build status" src=https://github.com/omnidotdev/lattice/actions/workflows/cli-build.yml/badge.svg>
+  <a href="https://github.com/omnidotdev/lattice-server/actions/workflows/cli-build.yml">
+    <img alt="CLI build status" src=https://github.com/omnidotdev/lattice-server/actions/workflows/cli-build.yml/badge.svg>
   </a>
 </p>
 

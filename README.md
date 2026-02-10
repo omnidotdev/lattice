@@ -15,8 +15,8 @@ cargo build --release -p lattice-gateway
 ## Docker
 
 ```bash
-docker pull ghcr.io/omnidotdev/lattice:latest
-docker run -p 4000:4000 ghcr.io/omnidotdev/lattice:latest
+docker pull ghcr.io/omnidotdev/lattice-server:latest
+docker run -p 4000:4000 ghcr.io/omnidotdev/lattice-server:latest
 ```
 
 ## Documentation

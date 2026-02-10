@@ -7,11 +7,11 @@
   ],
   "homepage": "https://lattice.omni.dev",
   "bugs": {
-    "url": "https://github.com/omnidotdev/lattice/issues"
+    "url": "https://github.com/omnidotdev/lattice-server/issues"
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/omnidotdev/lattice",
+    "url": "https://github.com/omnidotdev/lattice-server",
     "directory": "cli"
   },
   "license": "Apache-2.0",

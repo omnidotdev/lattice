@@ -52,7 +52,7 @@ edition = "2021"
 license = "MIT"
 homepage = "https://lattice.omni.dev"
 keywords = ["lattice", "graphql", "federation", "gateway"]
-repository = "https://github.com/omnidotdev/lattice"
+repository = "https://github.com/omnidotdev/lattice-server"
 
 [workspace.dependencies]
 anyhow = "1"
