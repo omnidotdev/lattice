@@ -1,3 +1,0 @@
-type __mytype {
-  id: ID!
-}

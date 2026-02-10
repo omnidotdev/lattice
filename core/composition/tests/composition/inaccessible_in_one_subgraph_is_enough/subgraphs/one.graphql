@@ -1,9 +1,0 @@
-type Query {
-    colors: [Color]
-}
-
-type Color @shareable {
-  red: Int
-  green: Int
-  blue: Int
-}

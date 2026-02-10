@@ -1,9 +1,0 @@
-extend schema
-  @link(url: "https://specs.apollo.dev/federation/v2.7",
-        import: ["@key", "@authenticated"])
-
-type Car @key(fields: "id") {
-  id: String! @authenticated
-  spareParts: [String!] @authenticated
-}
-

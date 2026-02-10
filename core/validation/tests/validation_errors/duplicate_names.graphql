@@ -1,7 +1,0 @@
-type Test {
-  id: ID!
-}
-
-type Test {
-  name: String!
-}

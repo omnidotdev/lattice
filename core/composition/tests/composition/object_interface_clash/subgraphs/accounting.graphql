@@ -1,8 +1,0 @@
-type Customer {
-    id: ID!
-    name: String!
-}
-
-type Query {
-  getCustomer(name: String): Customer
-}

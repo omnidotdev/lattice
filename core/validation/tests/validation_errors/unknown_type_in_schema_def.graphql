@@ -1,5 +1,0 @@
-schema {
-    query: Dunno
-    mutation: WhatdoIknow
-    subscription: ToWhat
-}

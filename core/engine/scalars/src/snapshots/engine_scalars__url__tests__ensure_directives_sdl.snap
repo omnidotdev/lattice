@@ -1,9 +1,0 @@
----
-source: crates/engine/src/registry/scalars/url.rs
-expression: "URLScalar::sdl()"
----
-"""
-An URL as defined by RFC1738. For example, `https://example.com/foo/` or `mailto:user@example.com`.
-"""
-scalar URL @specifiedBy(url: "http://url.spec.whatwg.org/")
-

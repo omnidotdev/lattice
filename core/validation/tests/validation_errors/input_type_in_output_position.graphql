@@ -1,8 +1,0 @@
-interface Test {
-  id: ID!
-  options: Options!
-}
-
-input Options {
-   includeAll: Boolean
-}

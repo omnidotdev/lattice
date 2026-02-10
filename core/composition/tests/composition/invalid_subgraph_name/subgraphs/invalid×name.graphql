@@ -1,5 +1,0 @@
-scalar Pong
-
-type Query {
-  ping: Pong
-}

@@ -1,7 +1,0 @@
-type Query
-
-directive @auth(requires: Role = ADMIN) on OBJECT | FIELD_DEFINITION
-
-# --- #
-
-type Query

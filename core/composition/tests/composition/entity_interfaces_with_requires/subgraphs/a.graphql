@@ -1,9 +1,0 @@
-interface Media @key(fields: "id") {
-  id: ID!
-  title: String!
-}
-
-type Book implements Media @key(fields: "id") {
-  id: ID!
-  title: String!
-}

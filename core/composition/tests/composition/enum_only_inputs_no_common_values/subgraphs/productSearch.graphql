@@ -1,9 +1,0 @@
-type Query {
-  searchProduct(filterName: FilterName, filterValue: String): [String!]
-}
-
-enum FilterName {
-  ROLE
-  PROFESSION
-}
-

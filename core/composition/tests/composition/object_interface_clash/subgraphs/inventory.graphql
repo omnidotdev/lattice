@@ -1,3 +1,0 @@
-interface Customer {
-    deliveryAddress: String!
-}

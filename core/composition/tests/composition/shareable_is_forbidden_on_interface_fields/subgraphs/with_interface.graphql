@@ -1,9 +1,0 @@
-extend type Query {
-  allMovements: [Movement!]!
-}
-
-interface Movement {
-  id: ID!
-  name: String!
-  difficulty: Int @shareable
-}

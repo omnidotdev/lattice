@@ -1,5 +1,0 @@
-input GraphRequestAnalyticsFilter {
-  branch: String = null
-  period: GraphRequestAnalyticsPeriod
-  now: DateTime
-}

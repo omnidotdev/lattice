@@ -1,7 +1,0 @@
-directive @likeAndSubscribe on FIELD_DEFINITION
-
-enum Test @likeAndSubscribe {
-  MAYBE
-  LATER
-}
-

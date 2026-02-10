@@ -1,3 +1,0 @@
-extend scalar String @myDirective
-
-extend scalar NotDefined @myDirective

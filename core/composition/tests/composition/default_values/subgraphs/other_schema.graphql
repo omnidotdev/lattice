@@ -1,9 +1,0 @@
-input AddBookInput {
-  title: String!
-  author: String!
-  yearPublished: Int
-}
-
-type Query {
-  books(limit: Int): [Book!]! @shareable
-}

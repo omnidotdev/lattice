@@ -1,4 +1,0 @@
-type Band {
-  genre: String
-  name: String!
-}
