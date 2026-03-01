@@ -227,7 +227,7 @@ jobs:
         run: |
           cargo build --release -p lattice-gateway --target ${{ matrix.archs.target }}
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.archs.platform }}-release-timings.html
           path: target/cargo-timings/cargo-timing.html
@@ -266,7 +266,7 @@ jobs:
 
       - if: startsWith(github.ref, 'refs/tags/') && startsWith(github.ref_name, 'lattice-cli-')
         name: Upload lattice-cli binaries
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ env.VERSION_BUMP }}-${{ matrix.archs.platform }}
           path: |
@@ -274,7 +274,7 @@ jobs:
 
       - if: startsWith(github.ref, 'refs/tags/') && startsWith(github.ref_name, 'gateway-')
         name: Upload gateway binaries
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: gateway-${{ env.VERSION_BUMP }}-${{ matrix.archs.platform }}
           path: |
@@ -308,7 +308,7 @@ jobs:
 
       - if: startsWith(github.ref, 'refs/tags/') && startsWith(github.ref_name, 'gateway-')
         name: Upload gateway lambda binary
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: gateway-lambda-${{ env.VERSION_BUMP }}-${{ matrix.archs.platform }}
           path: |
@@ -345,7 +345,7 @@ jobs:
           cd cli
           cargo build --release -p lattice-cli --target x86_64-pc-windows-msvc --timings
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: windows-release-timings.html
           path: target/cargo-timings/cargo-timing.html
@@ -360,7 +360,7 @@ jobs:
 
       - if: startsWith(github.ref, 'refs/tags/') && startsWith(github.ref_name, 'lattice-cli-')
         name: Upload lattice-cli x86_64-pc-windows-msvc binary
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ env.VERSION_BUMP }}-x86_64-pc-windows-msvc
           path: target/x86_64-pc-windows-msvc/release/lattice-cli.exe
@@ -400,7 +400,7 @@ jobs:
         run: |
           cargo build --release -p lattice-gateway --target ${{ matrix.target }}
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.target }}-release-timings.html
           path: target/cargo-timings/cargo-timing.html
@@ -441,14 +441,14 @@ jobs:
 
       - if: startsWith(github.ref, 'refs/tags/') && startsWith(github.ref_name, 'lattice-cli-')
         name: Upload lattice-cli ${{ matrix.target }} binary
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ env.VERSION_BUMP }}-${{ matrix.target }}
           path: target/${{ matrix.target }}/release/lattice-cli
 
       - if: startsWith(github.ref, 'refs/tags/') && startsWith(github.ref_name, 'gateway-')
         name: Upload gateway ${{ matrix.target }} binary
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: gateway-${{ env.VERSION_BUMP }}-${{ matrix.target }}
           path: |

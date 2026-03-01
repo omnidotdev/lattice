@@ -85,7 +85,7 @@ jobs:
         working-directory: core/wasi-component-loader/examples
         run: cargo component build
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: example-component
           path: core/wasi-component-loader/examples/target/wasm32-wasip1/debug/*.wasm
@@ -174,7 +174,7 @@ jobs:
 
       - name: Download pre-built example component
         if: needs.example-component.result != 'skipped'
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: example-component
           path: core/wasi-component-loader/examples/target/wasm32-wasip1/debug
