@@ -24,7 +24,7 @@
   },
   "dependencies": {},
   "devDependencies": {
-    "jest": "29.7.0"
+    "jest": "30.2.0"
   },
   "optionalDependencies": {
     "@omnidotdev/cli-aarch64-apple-darwin": "^0.80.0",
