@@ -8,6 +8,7 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
+graphql-tools = { workspace = true }
 hive-router-query-planner = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
