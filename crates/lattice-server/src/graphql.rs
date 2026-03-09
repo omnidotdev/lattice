@@ -30,10 +30,19 @@ pub struct GraphqlError {
 }
 
 /// Handle incoming GraphQL POST requests.
-pub async fn handle(State(_state): State<Arc<AppState>>, Json(request): Json<GraphqlRequest>) -> Json<GraphqlResponse> {
-    // TODO: wire to federation planner + executor
+pub async fn handle(State(state): State<Arc<AppState>>, Json(request): Json<GraphqlRequest>) -> Json<GraphqlResponse> {
     tracing::info!(query = %request.query, "received graphql request");
 
+    if state.planner.is_none() {
+        return Json(GraphqlResponse {
+            data: None,
+            errors: Some(vec![GraphqlError {
+                message: "no supergraph loaded".into(),
+            }]),
+        });
+    }
+
+    // TODO: integrate query planning + execution once hive crate API is validated
     Json(GraphqlResponse {
         data: Some(serde_json::json!({ "__typename": "Query" })),
         errors: None,

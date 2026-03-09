@@ -27,8 +27,23 @@ async fn main() {
         }
     };
 
+    let supergraph_sdl = config
+        .supergraph
+        .path
+        .as_ref()
+        .and_then(|p| match std::fs::read_to_string(p) {
+            Ok(sdl) => {
+                tracing::info!(path = %p, "loaded supergraph SDL");
+                Some(sdl)
+            }
+            Err(e) => {
+                tracing::warn!(path = %p, "could not load supergraph SDL: {e}");
+                None
+            }
+        });
+
     let listen = config.server.listen.clone();
-    let state = Arc::new(lattice_server::AppState::from_config(config));
+    let state = Arc::new(lattice_server::AppState::new(config, supergraph_sdl.as_deref()));
     let app = lattice_server::router(state);
 
     tracing::info!("starting lattice gateway on {listen}");
