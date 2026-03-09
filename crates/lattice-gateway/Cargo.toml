@@ -1,0 +1,26 @@
+[package]
+name = "lattice-gateway"
+version = "0.1.0"
+description = "Lattice GraphQL federation gateway"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "lattice-gateway"
+path = "src/main.rs"
+
+[dependencies]
+lattice-config = { workspace = true }
+lattice-server = { workspace = true }
+clap = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+[dev-dependencies]
+cargo-husky = { workspace = true }
+
+[lints]
+workspace = true

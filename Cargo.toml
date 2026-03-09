@@ -1,0 +1,59 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/lattice-config",
+    "crates/lattice-federation",
+    "crates/lattice-execution",
+    "crates/lattice-server",
+    "crates/lattice-gateway",
+]
+
+[workspace.package]
+edition = "2024"
+rust-version = "1.85"
+license = "MIT"
+repository = "https://github.com/omnidotdev/lattice-gateway"
+homepage = "https://omni.dev"
+
+[workspace.dependencies]
+# Internal crates
+lattice-config = { path = "crates/lattice-config" }
+lattice-federation = { path = "crates/lattice-federation" }
+lattice-execution = { path = "crates/lattice-execution" }
+lattice-server = { path = "crates/lattice-server" }
+
+# Async runtime
+tokio = { version = "1", features = ["full"] }
+
+# HTTP server
+axum = "0.8"
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+serde_yaml = "0.9"
+
+# CLI
+clap = { version = "4", features = ["derive", "env"] }
+
+# Error handling
+thiserror = "2"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+
+# Federation
+hive-router-query-planner = "2"
+
+# Testing
+cargo-husky = { version = "1", default-features = false, features = ["precommit-hook", "run-cargo-fmt", "run-cargo-clippy", "run-cargo-test"] }
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+all = { level = "deny", priority = -1 }
+pedantic = { level = "deny", priority = -1 }
+nursery = { level = "warn", priority = -1 }
+module_name_repetitions = "allow"

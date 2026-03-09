@@ -1,0 +1,25 @@
+[package]
+name = "lattice-server"
+version = "0.1.0"
+description = "HTTP server and request pipeline for Lattice gateway"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+lattice-config = { workspace = true }
+lattice-federation = { workspace = true }
+lattice-execution = { workspace = true }
+axum = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+cargo-husky = { workspace = true }
+
+[lints]
+workspace = true
