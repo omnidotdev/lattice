@@ -12,6 +12,7 @@ lattice-auth = { workspace = true }
 lattice-config = { workspace = true }
 lattice-federation = { workspace = true }
 lattice-execution = { workspace = true }
+lattice-rate-limit = { workspace = true }
 axum = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }

@@ -35,7 +35,7 @@ pub trait RateLimiter: Send + Sync {
         key: &str,
         max_requests: u64,
         window_seconds: u64,
-    ) -> impl Future<Output = Result<RateLimitResult, RateLimitError>> + Send;
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<RateLimitResult, RateLimitError>> + Send + '_>>;
 }
 
 #[cfg(test)]
@@ -73,38 +73,43 @@ mod tests {
     }
 
     impl RateLimiter for InMemoryRateLimiter {
-        async fn check(
+        fn check(
             &self,
             key: &str,
             max_requests: u64,
             window_seconds: u64,
-        ) -> Result<RateLimitResult, RateLimitError> {
-            let mut store = self.store.lock().map_err(|e| RateLimitError::Backend(e.to_string()))?;
+        ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<RateLimitResult, RateLimitError>> + Send + '_>>
+        {
+            let key = key.to_owned();
 
-            let now = Self::now_secs();
-            let window_start = now - (now % window_seconds);
+            Box::pin(async move {
+                let mut store = self.store.lock().map_err(|e| RateLimitError::Backend(e.to_string()))?;
 
-            let state = store
-                .entry(key.to_owned())
-                .or_insert_with(|| WindowState { count: 0, window_start });
+                let now = Self::now_secs();
+                let window_start = now - (now % window_seconds);
 
-            // Reset if the window has rolled over.
-            if state.window_start != window_start {
-                state.count = 0;
-                state.window_start = window_start;
-            }
+                let state = store
+                    .entry(key)
+                    .or_insert_with(|| WindowState { count: 0, window_start });
 
-            state.count += 1;
+                // Reset if the window has rolled over.
+                if state.window_start != window_start {
+                    state.count = 0;
+                    state.window_start = window_start;
+                }
 
-            let allowed = state.count <= max_requests;
-            let remaining = if allowed { max_requests - state.count } else { 0 };
-            let reset_after = window_seconds - (now - window_start);
+                state.count += 1;
 
-            Ok(RateLimitResult {
-                allowed,
-                limit: max_requests,
-                remaining,
-                reset_after,
+                let allowed = state.count <= max_requests;
+                let remaining = if allowed { max_requests - state.count } else { 0 };
+                let reset_after = window_seconds - (now - window_start);
+
+                Ok(RateLimitResult {
+                    allowed,
+                    limit: max_requests,
+                    remaining,
+                    reset_after,
+                })
             })
         }
     }
