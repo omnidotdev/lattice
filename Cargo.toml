@@ -9,13 +9,14 @@ members = [
     "crates/lattice-server",
     "crates/lattice-cache",
     "crates/lattice-rate-limit",
+    "crates/lattice-plugin",
     "crates/lattice-gateway",
     "crates/lattice-cli",
 ]
 
 [workspace.package]
 edition = "2024"
-rust-version = "1.85"
+rust-version = "1.87"
 license = "MIT"
 repository = "https://github.com/omnidotdev/lattice-gateway"
 homepage = "https://omni.dev"
@@ -30,6 +31,10 @@ lattice-execution = { path = "crates/lattice-execution" }
 lattice-server = { path = "crates/lattice-server" }
 lattice-cache = { path = "crates/lattice-cache" }
 lattice-rate-limit = { path = "crates/lattice-rate-limit" }
+lattice-plugin = { path = "crates/lattice-plugin" }
+
+# Plugin runtime
+extism = "1"
 
 # Cache
 deadpool-redis = "0.23"

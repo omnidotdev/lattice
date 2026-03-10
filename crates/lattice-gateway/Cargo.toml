@@ -13,6 +13,7 @@ path = "src/main.rs"
 
 [dependencies]
 lattice-config = { workspace = true }
+lattice-plugin = { workspace = true }
 lattice-telemetry = { workspace = true }
 lattice-server = { workspace = true }
 axum = { workspace = true }

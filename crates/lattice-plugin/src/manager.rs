@@ -1,0 +1,166 @@
+use lattice_config::PluginConfig;
+
+use crate::error::PluginError;
+use crate::hooks::{HookResult, OnRequestInput, OnResponseInput};
+use crate::instance::PluginInstance;
+
+/// Manage loaded plugin instances and dispatch hooks.
+#[derive(Debug)]
+pub struct PluginManager {
+    plugins: Vec<PluginInstance>,
+}
+
+impl PluginManager {
+    /// Create a new manager with the given plugin instances.
+    #[must_use]
+    pub const fn new(plugins: Vec<PluginInstance>) -> Self {
+        Self { plugins }
+    }
+
+    /// Run `on_request` across all plugins that registered for it.
+    ///
+    /// Returns the first `Reject` or `Modify` result, or `Continue` if all
+    /// plugins continue. Individual plugin errors are logged and skipped
+    /// (fail-open) so one broken plugin doesn't block later plugins.
+    pub fn on_request(&self, input: &OnRequestInput) -> HookResult {
+        for plugin in &self.plugins {
+            if !plugin.has_hook("on_request") {
+                continue;
+            }
+
+            match plugin.on_request(input) {
+                Ok(HookResult::Continue) => {}
+                Ok(result @ (HookResult::Modify { .. } | HookResult::Reject { .. })) => {
+                    tracing::info!(plugin = plugin.name(), "on_request hook intercepted");
+                    return result;
+                }
+                Err(e) => {
+                    tracing::warn!(plugin = plugin.name(), error = %e, "on_request plugin error, skipping");
+                }
+            }
+        }
+
+        HookResult::Continue
+    }
+
+    /// Run `on_response` across all plugins that registered for it.
+    ///
+    /// Returns the first `Modify` result, or `Continue` if all continue.
+    /// `Reject` is treated as `Continue` for response hooks (too late to reject).
+    /// Individual plugin errors are logged and skipped (fail-open).
+    pub fn on_response(&self, input: &OnResponseInput) -> HookResult {
+        for plugin in &self.plugins {
+            if !plugin.has_hook("on_response") {
+                continue;
+            }
+
+            match plugin.on_response(input) {
+                Ok(HookResult::Continue | HookResult::Reject { .. }) => {}
+                Ok(result @ HookResult::Modify { .. }) => {
+                    tracing::info!(plugin = plugin.name(), "on_response hook modified response");
+                    return result;
+                }
+                Err(e) => {
+                    tracing::warn!(plugin = plugin.name(), error = %e, "on_response plugin error, skipping");
+                }
+            }
+        }
+
+        HookResult::Continue
+    }
+
+    /// Number of loaded plugins.
+    #[must_use]
+    pub const fn len(&self) -> usize {
+        self.plugins.len()
+    }
+
+    /// Whether any plugins are loaded.
+    #[must_use]
+    pub const fn is_empty(&self) -> bool {
+        self.plugins.is_empty()
+    }
+}
+
+/// Convert a YAML value to a plain string for plugin config.
+fn yaml_value_to_string(v: &serde_yaml::Value) -> String {
+    match v {
+        serde_yaml::Value::String(s) => s.clone(),
+        serde_yaml::Value::Bool(b) => b.to_string(),
+        serde_yaml::Value::Number(n) => n.to_string(),
+        serde_yaml::Value::Null => String::new(),
+        other => serde_json::to_string(other).unwrap_or_default(),
+    }
+}
+
+/// Warn about hook names that aren't recognized.
+fn warn_unrecognized_hooks(name: &str, hooks: &[String]) {
+    for hook in hooks {
+        if !matches!(hook.as_str(), "on_request" | "on_response") {
+            tracing::warn!(plugin = %name, hook = %hook, "unrecognized hook name");
+        }
+    }
+}
+
+/// Load all plugins from config.
+///
+/// # Errors
+///
+/// Returns [`PluginError::Load`] if any `.wasm` file fails to load.
+pub fn load_plugins(configs: &[PluginConfig]) -> Result<PluginManager, PluginError> {
+    let mut plugins = Vec::with_capacity(configs.len());
+
+    for cfg in configs {
+        let config_map: std::collections::BTreeMap<String, String> = cfg
+            .config
+            .iter()
+            .map(|(k, v)| (k.clone(), yaml_value_to_string(v)))
+            .collect();
+
+        warn_unrecognized_hooks(&cfg.name, &cfg.hooks);
+        tracing::info!(name = %cfg.name, path = %cfg.path, "loading plugin");
+
+        let instance = PluginInstance::from_file(&cfg.name, &cfg.path, cfg.hooks.clone(), config_map)?;
+        plugins.push(instance);
+    }
+
+    tracing::info!(count = plugins.len(), "loaded plugins");
+    Ok(PluginManager::new(plugins))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn empty_manager_returns_continue_for_on_request() {
+        let mgr = PluginManager::new(vec![]);
+        let input = OnRequestInput {
+            query: "{ me }".into(),
+            operation_name: None,
+            variables: None,
+            client_ip: None,
+        };
+        let result = mgr.on_request(&input);
+        assert!(matches!(result, HookResult::Continue));
+    }
+
+    #[test]
+    fn empty_manager_returns_continue_for_on_response() {
+        let mgr = PluginManager::new(vec![]);
+        let input = OnResponseInput {
+            query: "{ me }".into(),
+            data: None,
+            errors: vec![],
+        };
+        let result = mgr.on_response(&input);
+        assert!(matches!(result, HookResult::Continue));
+    }
+
+    #[test]
+    fn manager_len_and_is_empty() {
+        let mgr = PluginManager::new(vec![]);
+        assert!(mgr.is_empty());
+        assert_eq!(mgr.len(), 0);
+    }
+}

@@ -40,8 +40,21 @@ async fn main() {
             }
         });
 
+    let plugin_manager = config
+        .plugins
+        .as_deref()
+        .filter(|p| !p.is_empty())
+        .map(lattice_plugin::load_plugins)
+        .transpose()
+        .unwrap_or_else(|e| {
+            tracing::error!(error = %e, "failed to load plugins");
+            None
+        });
+
     let listen = config.server.listen.clone();
-    let state = Arc::new(lattice_server::AppState::new(config, supergraph_sdl.as_deref()));
+    let mut state = lattice_server::AppState::new(config, supergraph_sdl.as_deref());
+    state.plugin_manager = plugin_manager;
+    let state = Arc::new(state);
     let app = lattice_server::router(state);
 
     tracing::info!("starting lattice gateway on {listen}");

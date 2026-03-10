@@ -1,7 +1,7 @@
 mod env;
 mod types;
 
-pub use types::{Config, JwtConfig, TelemetryConfig};
+pub use types::{Config, JwtConfig, PluginConfig, TelemetryConfig};
 
 use std::path::Path;
 
@@ -171,5 +171,36 @@ telemetry:
         let tel = config.telemetry.unwrap();
         assert_eq!(tel.service_name.as_deref(), Some("lattice-gateway"));
         assert_eq!(tel.log_format, "pretty");
+    }
+
+    #[test]
+    fn config_with_plugins() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("lattice.yaml");
+        let mut f = std::fs::File::create(&path).unwrap();
+        writeln!(
+            f,
+            r#"
+server:
+  listen: "0.0.0.0:4000"
+supergraph:
+  path: ./supergraph.graphql
+plugins:
+  - name: my-auth
+    path: ./plugins/auth.wasm
+    hooks:
+      - on_request
+    config:
+      allowed_roles: admin,user
+"#
+        )
+        .unwrap();
+
+        let config = load(&path).unwrap();
+        let plugins = config.plugins.unwrap();
+        assert_eq!(plugins.len(), 1);
+        assert_eq!(plugins[0].name, "my-auth");
+        assert_eq!(plugins[0].hooks, vec!["on_request"]);
+        assert!(plugins[0].config.contains_key("allowed_roles"));
     }
 }

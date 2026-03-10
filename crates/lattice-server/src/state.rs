@@ -5,6 +5,7 @@ use lattice_auth::JwtValidator;
 use lattice_config::Config;
 use lattice_execution::SubgraphClient;
 use lattice_federation::FederationPlanner;
+use lattice_plugin::PluginManager;
 use lattice_rate_limit::RateLimiter;
 
 /// Shared application state for the axum server.
@@ -20,6 +21,8 @@ pub struct AppState {
     pub rate_limiter: Option<Arc<dyn RateLimiter>>,
     /// Default rate limit parameters (`max_requests`, `window_seconds`).
     pub rate_limit_defaults: Option<(u64, u64)>,
+    /// Optional WASI plugin manager.
+    pub plugin_manager: Option<PluginManager>,
 }
 
 impl AppState {
@@ -58,6 +61,7 @@ impl AppState {
             jwt_validator,
             rate_limiter: None,
             rate_limit_defaults: None,
+            plugin_manager: None,
         }
     }
 }
