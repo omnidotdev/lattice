@@ -8,6 +8,7 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
+lattice-auth = { workspace = true }
 lattice-config = { workspace = true }
 lattice-federation = { workspace = true }
 lattice-execution = { workspace = true }

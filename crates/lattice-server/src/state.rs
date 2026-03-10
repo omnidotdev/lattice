@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use lattice_auth::JwtValidator;
 use lattice_config::Config;
 use lattice_execution::SubgraphClient;
 use lattice_federation::FederationPlanner;
@@ -11,6 +12,8 @@ pub struct AppState {
     pub subgraph_client: SubgraphClient,
     /// Map of subgraph name to URL (from config).
     pub subgraph_urls: HashMap<String, String>,
+    /// Optional JWT validator, present when auth is configured.
+    pub jwt_validator: Option<JwtValidator>,
 }
 
 impl AppState {
@@ -35,11 +38,18 @@ impl AppState {
             })
             .unwrap_or_default();
 
+        let jwt_validator = config
+            .auth
+            .as_ref()
+            .and_then(|a| a.jwt.as_ref())
+            .map(JwtValidator::from_config);
+
         Self {
             config,
             planner,
             subgraph_client: SubgraphClient::new(),
             subgraph_urls,
+            jwt_validator,
         }
     }
 }

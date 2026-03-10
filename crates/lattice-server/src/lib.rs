@@ -1,4 +1,5 @@
 mod graphql;
+pub mod middleware;
 mod state;
 
 use std::sync::Arc;
@@ -9,7 +10,10 @@ pub use state::AppState;
 
 /// Build the axum router with all routes.
 pub fn router(state: Arc<AppState>) -> Router {
-    Router::new().route("/graphql", post(graphql::handle)).with_state(state)
+    Router::new()
+        .route("/graphql", post(graphql::handle))
+        .layer(axum::middleware::from_fn_with_state(state.clone(), middleware::auth))
+        .with_state(state)
 }
 
 #[cfg(test)]
