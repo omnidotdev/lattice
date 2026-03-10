@@ -1278,6 +1278,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "lattice-cli"
+version = "0.1.0"
+dependencies = [
+ "cargo-husky",
+ "clap",
+ "lattice-config",
+ "serde_json",
+ "thiserror",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "lattice-config"
 version = "0.1.0"
 dependencies = [
@@ -1321,6 +1334,17 @@ dependencies = [
  "lattice-config",
  "lattice-server",
  "lattice-telemetry",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "lattice-rate-limit"
+version = "0.1.0"
+dependencies = [
+ "cargo-husky",
+ "deadpool-redis",
+ "thiserror",
  "tokio",
  "tracing",
 ]
