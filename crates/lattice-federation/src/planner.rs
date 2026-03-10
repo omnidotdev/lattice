@@ -25,7 +25,7 @@ impl FederationPlanner {
             .map_err(|e| FederationError::Parse(format!("{e:?}")))?
             .into_static();
 
-        let inner = Planner::new_from_supergraph(&parsed).map_err(|e| FederationError::Planner(format!("{e}")))?;
+        let inner = Planner::new_from_supergraph(&parsed).map_err(|e| FederationError::Planner(format!("{e:?}")))?;
 
         Ok(Self { inner })
     }
@@ -51,7 +51,7 @@ impl FederationPlanner {
 
         self.inner
             .plan_from_normalized_operation(normalized.executable_operation(), override_ctx, &cancel_token)
-            .map_err(|e| FederationError::Plan(format!("{e}")))
+            .map_err(|e| FederationError::Plan(format!("{e:?}")))
     }
 
     /// Access the inner planner for query planning.

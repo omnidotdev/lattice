@@ -115,4 +115,11 @@ mod tests {
         let result = planner.plan("not a valid query {{{", None);
         assert!(result.is_err());
     }
+
+    #[test]
+    fn plan_returns_error_for_nonexistent_field() {
+        let planner = FederationPlanner::from_sdl(TEST_SUPERGRAPH).unwrap();
+        let result = planner.plan("{ nonExistentField }", None);
+        assert!(result.is_err());
+    }
 }
