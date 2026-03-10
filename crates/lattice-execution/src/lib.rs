@@ -1,6 +1,8 @@
 mod dispatch;
+mod executor;
 
 pub use dispatch::{SubgraphClient, SubgraphRequest, SubgraphResponse};
+pub use executor::{ExecutionResult, ExecutionResultError, PlanExecutor, deep_merge};
 
 #[cfg(test)]
 mod tests {
