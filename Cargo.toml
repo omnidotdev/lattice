@@ -1,6 +1,7 @@
 [workspace]
 resolver = "2"
 members = [
+    "crates/lattice-auth",
     "crates/lattice-config",
     "crates/lattice-telemetry",
     "crates/lattice-federation",
@@ -18,11 +19,15 @@ homepage = "https://omni.dev"
 
 [workspace.dependencies]
 # Internal crates
+lattice-auth = { path = "crates/lattice-auth" }
 lattice-config = { path = "crates/lattice-config" }
 lattice-telemetry = { path = "crates/lattice-telemetry" }
 lattice-federation = { path = "crates/lattice-federation" }
 lattice-execution = { path = "crates/lattice-execution" }
 lattice-server = { path = "crates/lattice-server" }
+
+# JWT
+jsonwebtoken = { version = "10", default-features = false, features = ["rust_crypto"] }
 
 # Async runtime
 tokio = { version = "1", features = ["full"] }
