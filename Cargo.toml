@@ -8,6 +8,7 @@ members = [
     "crates/lattice-execution",
     "crates/lattice-server",
     "crates/lattice-cache",
+    "crates/lattice-rate-limit",
     "crates/lattice-gateway",
 ]
 
@@ -27,6 +28,7 @@ lattice-federation = { path = "crates/lattice-federation" }
 lattice-execution = { path = "crates/lattice-execution" }
 lattice-server = { path = "crates/lattice-server" }
 lattice-cache = { path = "crates/lattice-cache" }
+lattice-rate-limit = { path = "crates/lattice-rate-limit" }
 
 # Cache
 deadpool-redis = "0.23"
