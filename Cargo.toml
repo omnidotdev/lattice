@@ -47,7 +47,7 @@ tokio = { version = "1", features = ["full"] }
 futures = "0.3"
 
 # HTTP server
-axum = "0.8"
+axum = { version = "0.8", features = ["ws"] }
 
 # Serialization
 serde = { version = "1", features = ["derive"] }
@@ -71,6 +71,9 @@ tracing-opentelemetry = "0.30"
 # Federation
 graphql-tools = "0.5"
 hive-router-query-planner = "2"
+
+# WebSocket
+tokio-tungstenite = { version = "0.26", features = ["connect", "rustls-tls-webpki-roots"] }
 
 # HTTP utilities
 http-body-util = "0.1"

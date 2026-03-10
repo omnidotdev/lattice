@@ -3,19 +3,28 @@ pub mod middleware;
 mod playground;
 mod rate_limit;
 mod state;
+mod subscriptions;
 
 use std::sync::Arc;
 
 use axum::{
     Router,
+    extract::{State, WebSocketUpgrade},
+    response::Response,
     routing::{get, post},
 };
 
 pub use state::AppState;
 
+/// Handle WebSocket upgrade for GraphQL subscriptions.
+async fn ws_upgrade(ws: WebSocketUpgrade, State(state): State<Arc<AppState>>) -> Response {
+    ws.protocols(["graphql-transport-ws"])
+        .on_upgrade(move |socket| subscriptions::handle_socket(socket, state))
+}
+
 /// Build the axum router with all routes.
 pub fn router(state: Arc<AppState>) -> Router {
-    let mut app = Router::new().route("/graphql", post(graphql::handle));
+    let mut app = Router::new().route("/graphql", post(graphql::handle).get(ws_upgrade));
 
     // Serve GraphiQL when playground is enabled (default: true).
     let playground_enabled = state.config.server.playground.unwrap_or(true);
