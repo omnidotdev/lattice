@@ -47,6 +47,16 @@ async fn main() {
     let app = lattice_server::router(state);
 
     tracing::info!("starting lattice gateway on {listen}");
-    let listener = tokio::net::TcpListener::bind(&listen).await.unwrap();
-    axum::serve(listener, app).await.unwrap();
+    let listener = match tokio::net::TcpListener::bind(&listen).await {
+        Ok(l) => l,
+        Err(e) => {
+            tracing::error!("failed to bind to {listen}: {e}");
+            std::process::exit(1);
+        }
+    };
+
+    if let Err(e) = axum::serve(listener, app).await {
+        tracing::error!("server error: {e}");
+        std::process::exit(1);
+    }
 }

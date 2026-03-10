@@ -909,7 +909,6 @@ dependencies = [
  "graphql-tools",
  "hive-router-query-planner",
  "thiserror",
- "tracing",
 ]
 
 [[package]]
@@ -938,6 +937,7 @@ dependencies = [
  "lattice-federation",
  "serde",
  "serde_json",
+ "serde_yaml",
  "thiserror",
  "tokio",
  "tower",

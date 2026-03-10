@@ -11,7 +11,6 @@ repository.workspace = true
 graphql-tools = { workspace = true }
 hive-router-query-planner = { workspace = true }
 thiserror = { workspace = true }
-tracing = { workspace = true }
 
 [dev-dependencies]
 cargo-husky = { workspace = true }

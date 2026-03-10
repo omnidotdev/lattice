@@ -31,7 +31,7 @@ pub struct SubgraphError {
 #[derive(Serialize)]
 struct SubgraphRequestBody {
     query: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "operationName", skip_serializing_if = "Option::is_none")]
     operation_name: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     variables: Option<serde_json::Value>,
