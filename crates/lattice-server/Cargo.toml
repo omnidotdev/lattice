@@ -22,7 +22,10 @@ tracing = { workspace = true }
 [dev-dependencies]
 cargo-husky = { workspace = true }
 http-body-util = { workspace = true }
+mockito = "1"
+serde_json = { workspace = true }
 serde_yaml = { workspace = true }
+tokio = { workspace = true }
 tower = { workspace = true }
 
 [lints]
