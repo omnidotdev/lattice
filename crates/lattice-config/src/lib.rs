@@ -1,7 +1,7 @@
 mod env;
 mod types;
 
-pub use types::Config;
+pub use types::{Config, JwtConfig, TelemetryConfig};
 
 use std::path::Path;
 
@@ -114,5 +114,62 @@ subgraphs:
     fn rejects_missing_file() {
         let path = Path::new("/nonexistent/lattice.yaml");
         assert!(load(path).is_err());
+    }
+
+    #[test]
+    fn config_with_auth_and_cache() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("lattice.yaml");
+        let mut f = std::fs::File::create(&path).unwrap();
+        writeln!(
+            f,
+            r#"
+server:
+  listen: "0.0.0.0:4000"
+supergraph:
+  path: ./supergraph.graphql
+auth:
+  jwt:
+    jwks_url: https://auth.example.com/.well-known/jwks.json
+    issuer: https://auth.example.com
+    audience: my-app
+cache:
+  entity:
+    enabled: true
+    valkey_url: redis://localhost:6379
+    default_ttl: 60
+rate_limit:
+  enabled: true
+  valkey_url: redis://localhost:6379
+  default:
+    requests: 1000
+    window: 60s
+telemetry:
+  service_name: lattice-gateway
+  otlp_endpoint: http://localhost:4317
+  log_level: debug
+  log_format: pretty
+"#
+        )
+        .unwrap();
+
+        let config = load(&path).unwrap();
+        let auth = config.auth.unwrap();
+        let jwt = auth.jwt.unwrap();
+        assert_eq!(jwt.jwks_url, "https://auth.example.com/.well-known/jwks.json");
+        assert_eq!(jwt.issuer.as_deref(), Some("https://auth.example.com"));
+        assert!(jwt.forward_claims);
+
+        let cache = config.cache.unwrap().entity.unwrap();
+        assert!(cache.enabled);
+        assert_eq!(cache.default_ttl, 60);
+
+        let rl = config.rate_limit.unwrap();
+        assert!(rl.enabled);
+        assert_eq!(rl.default.unwrap().requests, 1000);
+
+        let tel = config.telemetry.unwrap();
+        assert_eq!(tel.service_name.as_deref(), Some("lattice-gateway"));
+        assert_eq!(tel.log_format, "pretty");
     }
 }
