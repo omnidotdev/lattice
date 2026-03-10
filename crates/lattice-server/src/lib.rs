@@ -1,19 +1,30 @@
 mod graphql;
 pub mod middleware;
+mod playground;
 mod rate_limit;
 mod state;
 
 use std::sync::Arc;
 
-use axum::{Router, routing::post};
+use axum::{
+    Router,
+    routing::{get, post},
+};
 
 pub use state::AppState;
 
 /// Build the axum router with all routes.
 pub fn router(state: Arc<AppState>) -> Router {
-    Router::new()
-        .route("/graphql", post(graphql::handle))
-        .layer(axum::middleware::from_fn_with_state(state.clone(), middleware::auth))
+    let mut app = Router::new().route("/graphql", post(graphql::handle));
+
+    // Serve GraphiQL when playground is enabled (default: true).
+    let playground_enabled = state.config.server.playground.unwrap_or(true);
+
+    if playground_enabled {
+        app = app.route("/", get(playground::graphiql));
+    }
+
+    app.layer(axum::middleware::from_fn_with_state(state.clone(), middleware::auth))
         .layer(axum::middleware::from_fn_with_state(
             state.clone(),
             rate_limit::rate_limit,
@@ -178,6 +189,25 @@ supergraph:
         let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
         let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
         assert!(json["errors"].is_array());
+    }
+
+    #[tokio::test]
+    async fn serves_graphiql_playground() {
+        let state = test_state();
+        let app = router(state);
+
+        let response = app
+            .oneshot(Request::builder().method("GET").uri("/").body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let content_type = response.headers().get("content-type").unwrap().to_str().unwrap();
+        assert!(content_type.contains("text/html"));
+
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        let html = String::from_utf8(body.to_vec()).unwrap();
+        assert!(html.contains("GraphiQL"));
     }
 
     #[tokio::test]
