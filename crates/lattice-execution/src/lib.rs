@@ -5,6 +5,7 @@ pub use dispatch::{SubgraphClient, SubgraphRequest, SubgraphResponse};
 pub use executor::{ExecutionResult, ExecutionResultError, PlanExecutor, deep_merge};
 
 #[cfg(test)]
+#[allow(clippy::significant_drop_tightening)]
 mod tests {
     use super::*;
 

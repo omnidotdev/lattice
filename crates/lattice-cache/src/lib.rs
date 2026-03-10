@@ -23,6 +23,7 @@ pub trait EntityCache: Send + Sync {
 }
 
 #[cfg(test)]
+#[allow(clippy::significant_drop_tightening)]
 mod tests {
     use std::collections::HashMap;
     use std::sync::Mutex;

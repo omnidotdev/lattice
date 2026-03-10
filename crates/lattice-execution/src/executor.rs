@@ -345,6 +345,7 @@ fn build_representations(data: &Value) -> Vec<Value> {
 }
 
 #[cfg(test)]
+#[allow(clippy::significant_drop_tightening, clippy::iter_on_single_items)]
 mod tests {
     use std::collections::{BTreeSet, HashMap};
 
