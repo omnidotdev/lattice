@@ -2,6 +2,7 @@ mod error;
 mod planner;
 
 pub use error::FederationError;
+pub use hive_router_query_planner::planner::plan_nodes::{FetchNode, FlattenNode, PlanNode, QueryPlan};
 pub use planner::FederationPlanner;
 
 #[cfg(test)]
@@ -16,10 +17,44 @@ mod tests {
             query: Query
         }
 
+        directive @join__enumValue(graph: join__Graph!) repeatable on ENUM_VALUE
+
+        directive @join__field(
+            graph: join__Graph
+            requires: join__FieldSet
+            provides: join__FieldSet
+            type: String
+            external: Boolean
+            override: String
+            usedOverridden: Boolean
+        ) repeatable on FIELD_DEFINITION | INPUT_FIELD_DEFINITION
+
         directive @join__graph(name: String!, url: String!) on ENUM_VALUE
-        directive @join__type(graph: join__Graph!, key: join__FieldSet) repeatable on OBJECT | INTERFACE
-        directive @join__field(graph: join__Graph) on FIELD_DEFINITION
-        directive @link(url: String, as: String, for: link__Purpose, import: [link__Import]) repeatable on SCHEMA
+
+        directive @join__implements(
+            graph: join__Graph!
+            interface: String!
+        ) repeatable on OBJECT | INTERFACE
+
+        directive @join__type(
+            graph: join__Graph!
+            key: join__FieldSet
+            extension: Boolean! = false
+            resolvable: Boolean! = true
+            isInterfaceObject: Boolean! = false
+        ) repeatable on OBJECT | INTERFACE | UNION | ENUM | INPUT_OBJECT | SCALAR
+
+        directive @join__unionMember(
+            graph: join__Graph!
+            member: String!
+        ) repeatable on UNION
+
+        directive @link(
+            url: String
+            as: String
+            for: link__Purpose
+            import: [link__Import]
+        ) repeatable on SCHEMA
 
         scalar join__FieldSet
         scalar link__Import
@@ -34,7 +69,10 @@ mod tests {
             PRODUCTS @join__graph(name: "products", url: "http://products:3001/graphql")
         }
 
-        type Query {
+        type Query
+            @join__type(graph: USERS)
+            @join__type(graph: PRODUCTS)
+        {
             me: User @join__field(graph: USERS)
             products: [Product] @join__field(graph: PRODUCTS)
         }
@@ -60,5 +98,21 @@ mod tests {
     fn rejects_invalid_sdl() {
         let planner = FederationPlanner::from_sdl("not valid graphql {{{}}}");
         assert!(planner.is_err());
+    }
+
+    #[test]
+    fn plans_simple_query() {
+        let planner = FederationPlanner::from_sdl(TEST_SUPERGRAPH).unwrap();
+        let result = planner.plan("{ me { id name } }", None);
+        assert!(result.is_ok(), "planning failed: {:?}", result.err());
+        let plan = result.unwrap();
+        assert!(plan.node.is_some());
+    }
+
+    #[test]
+    fn plan_returns_error_for_invalid_query() {
+        let planner = FederationPlanner::from_sdl(TEST_SUPERGRAPH).unwrap();
+        let result = planner.plan("not a valid query {{{", None);
+        assert!(result.is_err());
     }
 }

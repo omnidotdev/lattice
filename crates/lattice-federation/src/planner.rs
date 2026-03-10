@@ -1,4 +1,10 @@
-use hive_router_query_planner::planner::Planner;
+use graphql_tools::parser::parse_query;
+use hive_router_query_planner::{
+    ast::normalization::normalize_operation,
+    graph::PlannerOverrideContext,
+    planner::{Planner, plan_nodes::QueryPlan},
+    utils::cancellation::CancellationToken,
+};
 
 use crate::FederationError;
 
@@ -22,6 +28,30 @@ impl FederationPlanner {
         let inner = Planner::new_from_supergraph(&parsed).map_err(|e| FederationError::Planner(format!("{e}")))?;
 
         Ok(Self { inner })
+    }
+
+    /// Plan a client query against the supergraph.
+    ///
+    /// Parses the query string, normalizes it against the supergraph schema,
+    /// and produces a query plan describing which subgraphs to fetch from.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FederationError` if the query cannot be parsed, normalized, or planned.
+    pub fn plan(&self, query: &str, operation_name: Option<&str>) -> Result<QueryPlan, FederationError> {
+        let parsed = parse_query::<String>(query)
+            .map_err(|e| FederationError::QueryParse(format!("{e:?}")))?
+            .into_static();
+
+        let normalized = normalize_operation(&self.inner.supergraph, &parsed, operation_name)
+            .map_err(|e| FederationError::Normalization(format!("{e:?}")))?;
+
+        let override_ctx = PlannerOverrideContext::from_percentage(0.0);
+        let cancel_token = CancellationToken::new();
+
+        self.inner
+            .plan_from_normalized_operation(normalized.executable_operation(), override_ctx, &cancel_token)
+            .map_err(|e| FederationError::Plan(format!("{e}")))
     }
 
     /// Access the inner planner for query planning.

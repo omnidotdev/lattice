@@ -6,6 +6,10 @@ pub enum FederationError {
     Parse(String),
     #[error("failed to build query planner: {0}")]
     Planner(String),
-    #[error("query planning failed: {0}")]
+    #[error("query parse error: {0}")]
+    QueryParse(String),
+    #[error("normalization error: {0}")]
+    Normalization(String),
+    #[error("query plan error: {0}")]
     Plan(String),
 }
