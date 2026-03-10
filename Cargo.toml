@@ -2,6 +2,7 @@
 resolver = "2"
 members = [
     "crates/lattice-config",
+    "crates/lattice-telemetry",
     "crates/lattice-federation",
     "crates/lattice-execution",
     "crates/lattice-server",
@@ -18,6 +19,7 @@ homepage = "https://omni.dev"
 [workspace.dependencies]
 # Internal crates
 lattice-config = { path = "crates/lattice-config" }
+lattice-telemetry = { path = "crates/lattice-telemetry" }
 lattice-federation = { path = "crates/lattice-federation" }
 lattice-execution = { path = "crates/lattice-execution" }
 lattice-server = { path = "crates/lattice-server" }
@@ -39,9 +41,13 @@ clap = { version = "4", features = ["derive", "env"] }
 # Error handling
 thiserror = "2"
 
-# Logging
+# Logging / telemetry
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+opentelemetry = "0.29"
+opentelemetry_sdk = { version = "0.29", features = ["rt-tokio"] }
+opentelemetry-otlp = { version = "0.29", features = ["grpc-tonic"] }
+tracing-opentelemetry = "0.30"
 
 # Federation
 graphql-tools = "0.5"

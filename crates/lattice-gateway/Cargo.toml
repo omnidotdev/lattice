@@ -13,12 +13,12 @@ path = "src/main.rs"
 
 [dependencies]
 lattice-config = { workspace = true }
+lattice-telemetry = { workspace = true }
 lattice-server = { workspace = true }
 axum = { workspace = true }
 clap = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }
-tracing-subscriber = { workspace = true }
 
 [dev-dependencies]
 cargo-husky = { workspace = true }
