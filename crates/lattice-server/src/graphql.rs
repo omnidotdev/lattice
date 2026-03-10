@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::AppState;
 
+// TODO: wire operation_name and variables to query planner
 #[derive(Debug, Deserialize)]
 #[allow(dead_code)]
 pub struct GraphqlRequest {
