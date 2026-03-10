@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 
-use hive_router_query_planner::planner::plan_nodes::ConditionNode;
-use lattice_federation::{FetchNode, FlattenNode, PlanNode, QueryPlan};
+use lattice_federation::{ConditionNode, FetchNode, FlattenNode, PlanNode, QueryPlan};
 use serde_json::Value;
 
 use crate::dispatch::{ExecutionError, SubgraphClient, SubgraphRequest};
@@ -84,7 +83,7 @@ impl<'a> PlanExecutor<'a> {
         let url = self
             .subgraph_urls
             .get(&fetch.service_name)
-            .ok_or_else(|| ExecutionError::Parse(format!("no URL configured for subgraph `{}`", fetch.service_name)))?;
+            .ok_or_else(|| ExecutionError::SubgraphNotFound(fetch.service_name.clone()))?;
 
         let fetch_vars = build_fetch_variables(fetch, parent_data, client_variables);
 
@@ -256,7 +255,7 @@ pub fn deep_merge(target: &mut Value, source: Value) {
 }
 
 /// Merge `source` data into `target` at the given nested path.
-pub fn merge_at_path(target: &mut Value, path: &[&str], source: &Value) {
+fn merge_at_path(target: &mut Value, path: &[&str], source: &Value) {
     if path.is_empty() {
         deep_merge(target, source.clone());
         return;
@@ -355,7 +354,7 @@ mod tests {
             operation::{OperationDefinition, SubgraphFetchOperation},
             selection_set::SelectionSet,
         },
-        planner::plan_nodes::{FetchNode, PlanNode, QueryPlan, SequenceNode},
+        planner::plan_nodes::{ConditionNode, FetchNode, FlattenNode, ParallelNode, PlanNode, QueryPlan, SequenceNode},
     };
     use serde_json::json;
 
@@ -569,5 +568,205 @@ mod tests {
 
         assert!(result.data.is_some());
         mock.assert_async().await;
+    }
+
+    #[tokio::test]
+    async fn executes_parallel_and_merges_results() {
+        let mut server_a = mockito::Server::new_async().await;
+        let mock_a = server_a
+            .mock("POST", "/graphql")
+            .with_header("content-type", "application/json")
+            .with_body(r#"{"data":{"me":{"id":"1","name":"Alice"}}}"#)
+            .create_async()
+            .await;
+
+        let mut server_b = mockito::Server::new_async().await;
+        let mock_b = server_b
+            .mock("POST", "/graphql")
+            .with_header("content-type", "application/json")
+            .with_body(r#"{"data":{"products":[{"id":"p1"}]}}"#)
+            .create_async()
+            .await;
+
+        let client = SubgraphClient::new();
+        let urls: HashMap<String, String> = [
+            ("users".into(), format!("{}/graphql", server_a.url())),
+            ("products".into(), format!("{}/graphql", server_b.url())),
+        ]
+        .into_iter()
+        .collect();
+
+        let plan = QueryPlan {
+            kind: "QueryPlan",
+            node: Some(PlanNode::Parallel(ParallelNode {
+                nodes: vec![
+                    PlanNode::Fetch(test_fetch_node("users", "{ me { id name } }")),
+                    PlanNode::Fetch(test_fetch_node("products", "{ products { id } }")),
+                ],
+            })),
+        };
+
+        let executor = PlanExecutor::new(&client, &urls);
+        let result = executor.execute(&plan, None).await.unwrap();
+
+        let data = result.data.unwrap();
+        assert_eq!(data["me"]["name"], "Alice");
+        assert_eq!(data["products"][0]["id"], "p1");
+        assert!(result.errors.is_empty());
+        mock_a.assert_async().await;
+        mock_b.assert_async().await;
+    }
+
+    #[tokio::test]
+    async fn condition_executes_if_clause_when_true() {
+        let mut server = mockito::Server::new_async().await;
+        let mock = server
+            .mock("POST", "/graphql")
+            .with_header("content-type", "application/json")
+            .with_body(r#"{"data":{"me":{"id":"1"}}}"#)
+            .create_async()
+            .await;
+
+        let client = SubgraphClient::new();
+        let urls: HashMap<String, String> = [("users".into(), format!("{}/graphql", server.url()))]
+            .into_iter()
+            .collect();
+
+        let plan = QueryPlan {
+            kind: "QueryPlan",
+            node: Some(PlanNode::Condition(ConditionNode {
+                condition: "includeUser".to_string(),
+                if_clause: Some(Box::new(PlanNode::Fetch(test_fetch_node("users", "{ me { id } }")))),
+                else_clause: None,
+            })),
+        };
+
+        let vars = json!({"includeUser": true});
+        let executor = PlanExecutor::new(&client, &urls);
+        let result = executor.execute(&plan, Some(&vars)).await.unwrap();
+
+        assert_eq!(result.data, Some(json!({"me": {"id": "1"}})));
+        mock.assert_async().await;
+    }
+
+    #[tokio::test]
+    async fn condition_executes_else_clause_when_false() {
+        let mut server = mockito::Server::new_async().await;
+        let mock = server
+            .mock("POST", "/graphql")
+            .with_header("content-type", "application/json")
+            .with_body(r#"{"data":{"fallback":true}}"#)
+            .create_async()
+            .await;
+
+        let client = SubgraphClient::new();
+        let urls: HashMap<String, String> = [("users".into(), format!("{}/graphql", server.url()))]
+            .into_iter()
+            .collect();
+
+        let plan = QueryPlan {
+            kind: "QueryPlan",
+            node: Some(PlanNode::Condition(ConditionNode {
+                condition: "includeUser".to_string(),
+                if_clause: None,
+                else_clause: Some(Box::new(PlanNode::Fetch(test_fetch_node("users", "{ fallback }")))),
+            })),
+        };
+
+        // Variable is false, so else-clause should execute.
+        let vars = json!({"includeUser": false});
+        let executor = PlanExecutor::new(&client, &urls);
+        let result = executor.execute(&plan, Some(&vars)).await.unwrap();
+
+        assert_eq!(result.data, Some(json!({"fallback": true})));
+        mock.assert_async().await;
+    }
+
+    #[tokio::test]
+    async fn condition_executes_else_clause_when_variable_missing() {
+        let mut server = mockito::Server::new_async().await;
+        let mock = server
+            .mock("POST", "/graphql")
+            .with_header("content-type", "application/json")
+            .with_body(r#"{"data":{"fallback":true}}"#)
+            .create_async()
+            .await;
+
+        let client = SubgraphClient::new();
+        let urls: HashMap<String, String> = [("users".into(), format!("{}/graphql", server.url()))]
+            .into_iter()
+            .collect();
+
+        let plan = QueryPlan {
+            kind: "QueryPlan",
+            node: Some(PlanNode::Condition(ConditionNode {
+                condition: "includeUser".to_string(),
+                if_clause: None,
+                else_clause: Some(Box::new(PlanNode::Fetch(test_fetch_node("users", "{ fallback }")))),
+            })),
+        };
+
+        // No variables provided, so condition defaults to false.
+        let executor = PlanExecutor::new(&client, &urls);
+        let result = executor.execute(&plan, None).await.unwrap();
+
+        assert_eq!(result.data, Some(json!({"fallback": true})));
+        mock.assert_async().await;
+    }
+
+    #[tokio::test]
+    async fn flatten_merges_inner_fetch_at_path() {
+        use hive_router_query_planner::planner::plan_nodes::FlattenNodePath;
+
+        let mut server = mockito::Server::new_async().await;
+
+        // First request: initial fetch returning user with id.
+        let mock_first = server
+            .mock("POST", "/graphql")
+            .with_header("content-type", "application/json")
+            .with_body(r#"{"data":{"me":{"id":"1"}}}"#)
+            .create_async()
+            .await;
+
+        // Second request: flatten fetch returning additional fields.
+        let mock_flatten = server
+            .mock("POST", "/graphql")
+            .with_header("content-type", "application/json")
+            .with_body(r#"{"data":{"email":"alice@example.com"}}"#)
+            .create_async()
+            .await;
+
+        let client = SubgraphClient::new();
+        let urls: HashMap<String, String> = [("users".into(), format!("{}/graphql", server.url()))]
+            .into_iter()
+            .collect();
+
+        // Construct `FlattenNodePath` via deserialization since the inner
+        // `Vec` is private.
+        let path: FlattenNodePath =
+            serde_json::from_value(json!([{"Field": "me"}])).expect("failed to deserialize path");
+
+        let plan = QueryPlan {
+            kind: "QueryPlan",
+            // Wrap the flatten in a sequence so the first fetch provides
+            // an object structure for `merge_at_path` to walk into.
+            node: Some(PlanNode::Sequence(SequenceNode {
+                nodes: vec![
+                    PlanNode::Fetch(test_fetch_node("users", "{ me { id } }")),
+                    PlanNode::Flatten(FlattenNode {
+                        path,
+                        node: Box::new(PlanNode::Fetch(test_fetch_node("users", "{ me { email } }"))),
+                    }),
+                ],
+            })),
+        };
+
+        let executor = PlanExecutor::new(&client, &urls);
+        let result = executor.execute(&plan, None).await.unwrap();
+
+        let data = result.data.unwrap();
+        assert_eq!(data["me"]["email"], "alice@example.com");
+        mock_first.assert_async().await;
+        mock_flatten.assert_async().await;
     }
 }

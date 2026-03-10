@@ -7,6 +7,8 @@ pub enum ExecutionError {
     Request(#[from] reqwest::Error),
     #[error("failed to parse subgraph response: {0}")]
     Parse(String),
+    #[error("subgraph not found: {0}")]
+    SubgraphNotFound(String),
 }
 
 pub struct SubgraphRequest {

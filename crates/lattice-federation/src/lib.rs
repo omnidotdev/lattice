@@ -2,7 +2,7 @@ mod error;
 mod planner;
 
 pub use error::FederationError;
-pub use hive_router_query_planner::planner::plan_nodes::{FetchNode, FlattenNode, PlanNode, QueryPlan};
+pub use hive_router_query_planner::planner::plan_nodes::{ConditionNode, FetchNode, FlattenNode, PlanNode, QueryPlan};
 pub use planner::FederationPlanner;
 
 #[cfg(test)]
