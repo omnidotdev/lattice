@@ -6,6 +6,26 @@ use thiserror::Error;
 
 use crate::JwksProvider;
 
+/// Parse an audience claim value into a list of audience strings.
+///
+/// Handles both single-string and array-of-strings representations commonly
+/// found across JWT providers.
+///
+/// # Examples
+///
+/// ```
+/// let audiences = lattice_auth::parse_audience(&serde_json::json!("my-api"));
+/// assert_eq!(audiences, vec!["my-api"]);
+/// ```
+#[must_use]
+pub fn parse_audience(value: &serde_json::Value) -> Vec<String> {
+    match value {
+        serde_json::Value::String(s) => vec![s.clone()],
+        serde_json::Value::Array(arr) => arr.iter().filter_map(|v| v.as_str().map(String::from)).collect(),
+        _ => vec![],
+    }
+}
+
 /// Standard and custom JWT claims.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Claims {
@@ -41,18 +61,38 @@ pub struct JwtValidator {
     provider: JwksProvider,
     issuer: Option<String>,
     audience: Option<String>,
+    header_prefix: String,
+    audiences: Vec<String>,
 }
 
 impl JwtValidator {
     /// Create a validator with the given JWKS provider and optional issuer /
     /// audience constraints.
     #[must_use]
-    pub const fn new(provider: JwksProvider, issuer: Option<String>, audience: Option<String>) -> Self {
+    pub fn new(provider: JwksProvider, issuer: Option<String>, audience: Option<String>) -> Self {
         Self {
             provider,
             issuer,
             audience,
+            header_prefix: String::from("Bearer "),
+            audiences: vec![],
         }
+    }
+
+    /// Set a custom authorization header prefix (e.g. `"Token "`).
+    #[must_use]
+    pub fn with_header_prefix(mut self, prefix: &str) -> Self {
+        self.header_prefix = String::from(prefix);
+        self
+    }
+
+    /// Set multiple audiences to validate against.
+    ///
+    /// When non-empty, this takes precedence over the single `audience` field.
+    #[must_use]
+    pub fn with_audiences(mut self, audiences: Vec<String>) -> Self {
+        self.audiences = audiences;
+        self
     }
 
     /// Create a validator from a [`lattice_config::JwtConfig`].
@@ -72,7 +112,7 @@ impl JwtValidator {
     /// fetched, no matching key is found, or the token is invalid.
     pub async fn validate(&self, auth_header: &str) -> Result<Claims, AuthError> {
         let token = auth_header
-            .strip_prefix("Bearer ")
+            .strip_prefix(&self.header_prefix)
             .ok_or(AuthError::InvalidHeaderFormat)?;
 
         // Decode the unverified header to extract `kid` and `alg`.
@@ -93,7 +133,9 @@ impl JwtValidator {
             validation.set_issuer(&[iss]);
         }
 
-        if let Some(ref aud) = self.audience {
+        if !self.audiences.is_empty() {
+            validation.set_audience(&self.audiences);
+        } else if let Some(ref aud) = self.audience {
             validation.set_audience(&[aud]);
         } else {
             validation.validate_aud = false;
@@ -125,6 +167,41 @@ mod tests {
     async fn missing_bearer_prefix() {
         let validator = make_validator();
         let err = validator.validate("token123").await.unwrap_err();
+        assert!(matches!(err, AuthError::InvalidHeaderFormat));
+    }
+
+    #[test]
+    fn parse_audience_single_string() {
+        let audiences = parse_audience(&serde_json::json!("my-api"));
+        assert_eq!(audiences, vec!["my-api"]);
+    }
+
+    #[test]
+    fn parse_audience_array() {
+        let audiences = parse_audience(&serde_json::json!(["my-api", "other-api"]));
+        assert_eq!(audiences, vec!["my-api", "other-api"]);
+    }
+
+    #[test]
+    fn parse_audience_null() {
+        let audiences = parse_audience(&serde_json::Value::Null);
+        assert!(audiences.is_empty());
+    }
+
+    #[tokio::test]
+    async fn custom_header_prefix() {
+        let provider = JwksProvider::new("https://example.com/.well-known/jwks.json");
+        let validator = JwtValidator::new(provider, None, None).with_header_prefix("Token ");
+        let err = validator.validate("Token not-a-jwt").await.unwrap_err();
+        // Should get Decode error (not InvalidHeaderFormat), proving prefix was accepted.
+        assert!(matches!(err, AuthError::Decode(_)));
+    }
+
+    #[tokio::test]
+    async fn default_bearer_prefix() {
+        let provider = JwksProvider::new("https://example.com/.well-known/jwks.json");
+        let validator = JwtValidator::new(provider, None, None);
+        let err = validator.validate("Token something").await.unwrap_err();
         assert!(matches!(err, AuthError::InvalidHeaderFormat));
     }
 }

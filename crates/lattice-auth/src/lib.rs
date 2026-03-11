@@ -2,4 +2,4 @@ mod jwks;
 mod jwt;
 
 pub use jwks::JwksProvider;
-pub use jwt::{AuthError, Claims, JwtValidator};
+pub use jwt::{AuthError, Claims, JwtValidator, parse_audience};
