@@ -1,0 +1,8 @@
+{
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@theguild/federation-composition": "^0.14.0",
+    "graphql": "^16.0.0"
+  }
+}

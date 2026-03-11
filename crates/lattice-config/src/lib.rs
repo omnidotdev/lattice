@@ -320,7 +320,6 @@ telemetry:
         let jwt = auth.jwt.unwrap();
         assert_eq!(jwt.jwks_url, "https://auth.example.com/.well-known/jwks.json");
         assert_eq!(jwt.issuer.as_deref(), Some("https://auth.example.com"));
-        assert!(jwt.forward_claims);
 
         let cache = config.cache.unwrap().entity.unwrap();
         assert!(cache.enabled);

@@ -35,8 +35,6 @@ fn default_listen() -> String {
 #[derive(Debug, Deserialize)]
 pub struct SupergraphConfig {
     pub path: Option<String>,
-    pub url: Option<String>,
-    pub poll_interval: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -57,14 +55,8 @@ pub struct JwtConfig {
     pub issuer: Option<String>,
     pub audience: Option<String>,
     pub jwks_url: String,
-    #[serde(default = "default_true")]
-    pub forward_claims: bool,
     #[serde(default = "default_auth_header")]
     pub header_name: String,
-}
-
-const fn default_true() -> bool {
-    true
 }
 
 fn default_auth_header() -> String {

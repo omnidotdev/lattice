@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use axum::{
     extract::State,
-    http::{HeaderMap, Request, StatusCode},
+    http::{Request, StatusCode},
     middleware::Next,
     response::{IntoResponse, Response},
 };
@@ -18,26 +18,27 @@ fn unauthorized(message: &str) -> Response {
     (StatusCode::UNAUTHORIZED, axum::Json(body)).into_response()
 }
 
-/// Extract the `Authorization` header value from request headers.
-fn extract_auth_header(headers: &HeaderMap) -> Option<&str> {
-    headers
-        .get(axum::http::header::AUTHORIZATION)
-        .and_then(|v| v.to_str().ok())
-}
-
 /// Auth middleware that validates JWTs when auth is configured.
 ///
 /// When no `jwt_validator` is present in state (auth not configured), requests
 /// pass through unchanged. Otherwise, a valid `Authorization: Bearer <token>`
-/// header is required. On success the decoded [`lattice_auth::Claims`] are
-/// inserted into request extensions.
+/// header is required (or the custom header configured via `header_name`).
+/// On success the decoded [`lattice_auth::Claims`] are inserted into request
+/// extensions.
 pub async fn auth(State(state): State<Arc<AppState>>, mut request: Request<axum::body::Body>, next: Next) -> Response {
     let Some(ref validator) = state.jwt_validator else {
         // No auth configured — pass through.
         return next.run(request).await;
     };
 
-    let Some(header_value) = extract_auth_header(request.headers()) else {
+    let header_name = state
+        .config
+        .auth
+        .as_ref()
+        .and_then(|a| a.jwt.as_ref())
+        .map_or("authorization", |jwt| jwt.header_name.as_str());
+
+    let Some(header_value) = request.headers().get(header_name).and_then(|v| v.to_str().ok()) else {
         return unauthorized("missing authorization header");
     };
 
