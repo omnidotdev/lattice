@@ -16,6 +16,62 @@ pub struct OnRequestInput {
     pub client_ip: Option<String>,
 }
 
+/// Input sent to the `on_subgraph_request` plugin hook.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OnSubgraphRequestInput {
+    /// Name of the target subgraph.
+    pub subgraph_name: String,
+    /// Subgraph URL.
+    pub url: String,
+    /// The GraphQL query being sent.
+    pub query: String,
+    /// Query variables.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub variables: Option<serde_json::Value>,
+    /// Request headers.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub headers: Vec<(String, String)>,
+}
+
+/// Input sent to the `on_subgraph_response` plugin hook.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OnSubgraphResponseInput {
+    /// Name of the responding subgraph.
+    pub subgraph_name: String,
+    /// Response data.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub data: Option<serde_json::Value>,
+    /// Response errors.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub errors: Vec<serde_json::Value>,
+}
+
+/// Input sent to the `on_operation_response` plugin hook.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OnOperationResponseInput {
+    /// The original query string.
+    pub query: String,
+    /// Operation name.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub operation_name: Option<String>,
+    /// Response data.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub data: Option<serde_json::Value>,
+    /// Response errors.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub errors: Vec<serde_json::Value>,
+}
+
+/// Input sent to the `on_http_response` plugin hook.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OnHttpResponseInput {
+    /// HTTP status code.
+    pub status_code: u16,
+    /// Response body as JSON.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub body: Option<serde_json::Value>,
+}
+
 /// Input sent to the `on_response` plugin hook.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OnResponseInput {

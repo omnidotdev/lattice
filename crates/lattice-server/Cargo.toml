@@ -15,6 +15,7 @@ lattice-federation = { workspace = true }
 lattice-execution = { workspace = true }
 lattice-plugin = { workspace = true }
 lattice-rate-limit = { workspace = true }
+arc-swap = { workspace = true }
 axum = { workspace = true }
 futures = { workspace = true }
 serde = { workspace = true }
@@ -24,6 +25,7 @@ tokio-tungstenite = { workspace = true }
 tracing = { workspace = true }
 
 [dev-dependencies]
+arc-swap = { workspace = true }
 cargo-husky = { workspace = true }
 http-body-util = { workspace = true }
 mockito = "1"

@@ -1,7 +1,9 @@
 mod env;
 mod types;
+mod watcher;
 
-pub use types::{Config, JwtConfig, PluginConfig, TelemetryConfig};
+pub use types::{Config, JwtConfig, McpConfig, PluginConfig, TelemetryConfig};
+pub use watcher::ConfigWatcher;
 
 use std::path::Path;
 

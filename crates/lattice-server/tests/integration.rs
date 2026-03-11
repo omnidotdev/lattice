@@ -1,7 +1,9 @@
 use std::sync::Arc;
 
+use arc_swap::ArcSwap;
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
+use lattice_server::SharedState;
 use tower::ServiceExt;
 
 fn supergraph_sdl() -> String {
@@ -46,7 +48,10 @@ async fn full_pipeline_single_subgraph_query() {
 
     let config = test_config_with_subgraphs(&products_url, &reviews_url);
     let sdl = supergraph_sdl();
-    let state = Arc::new(lattice_server::AppState::new(config, Some(&sdl)));
+    let state: SharedState = Arc::new(ArcSwap::from(Arc::new(lattice_server::AppState::new(
+        config,
+        Some(&sdl),
+    ))));
     let app = lattice_server::router(state);
 
     // Drop servers' URL references; servers stay alive via `products` and `reviews` bindings.
@@ -98,7 +103,10 @@ async fn returns_planning_error_for_invalid_field() {
 
     let config = test_config_with_subgraphs(&products_url, &reviews_url);
     let sdl = supergraph_sdl();
-    let state = Arc::new(lattice_server::AppState::new(config, Some(&sdl)));
+    let state: SharedState = Arc::new(ArcSwap::from(Arc::new(lattice_server::AppState::new(
+        config,
+        Some(&sdl),
+    ))));
     let app = lattice_server::router(state);
 
     let body = serde_json::json!({

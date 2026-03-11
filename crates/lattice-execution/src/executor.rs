@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use lattice_federation::{ConditionNode, FetchNode, FlattenNode, PlanNode, QueryPlan};
 use serde_json::Value;
 
-use crate::dispatch::{ExecutionError, SubgraphClient, SubgraphRequest};
+use crate::dispatch::{ExecutionError, SubgraphClient, SubgraphRequest, SubgraphResponse};
 
 /// Result of executing a query plan against federated subgraphs.
 #[derive(Debug)]
@@ -18,16 +18,48 @@ pub struct ExecutionResultError {
     pub message: String,
 }
 
+/// Callback invoked before dispatching a fetch to a subgraph.
+///
+/// Receives the subgraph name and a mutable reference to the request.
+/// Return `Err(message)` to reject the request.
+type SubgraphRequestHook<'a> = dyn Fn(&str, &mut SubgraphRequest) -> Result<(), String> + Send + Sync + 'a;
+
+/// Callback invoked after receiving a response from a subgraph.
+///
+/// Receives the subgraph name and a mutable reference to the response.
+type SubgraphResponseHook<'a> = dyn Fn(&str, &mut SubgraphResponse) + Send + Sync + 'a;
+
 /// Execute federated query plans by dispatching fetches to subgraphs.
 pub struct PlanExecutor<'a> {
     client: &'a SubgraphClient,
     subgraph_urls: &'a HashMap<String, String>,
+    on_subgraph_request: Option<&'a SubgraphRequestHook<'a>>,
+    on_subgraph_response: Option<&'a SubgraphResponseHook<'a>>,
 }
 
 impl<'a> PlanExecutor<'a> {
     #[must_use]
-    pub const fn new(client: &'a SubgraphClient, subgraph_urls: &'a HashMap<String, String>) -> Self {
-        Self { client, subgraph_urls }
+    pub fn new(client: &'a SubgraphClient, subgraph_urls: &'a HashMap<String, String>) -> Self {
+        Self {
+            client,
+            subgraph_urls,
+            on_subgraph_request: None,
+            on_subgraph_response: None,
+        }
+    }
+
+    /// Set the callback invoked before each subgraph fetch.
+    #[must_use]
+    pub fn with_subgraph_request_hook(mut self, hook: &'a SubgraphRequestHook<'a>) -> Self {
+        self.on_subgraph_request = Some(hook);
+        self
+    }
+
+    /// Set the callback invoked after each subgraph response.
+    #[must_use]
+    pub fn with_subgraph_response_hook(mut self, hook: &'a SubgraphResponseHook<'a>) -> Self {
+        self.on_subgraph_response = Some(hook);
+        self
     }
 
     /// Execute a query plan, walking the plan node tree and dispatching
@@ -87,22 +119,36 @@ impl<'a> PlanExecutor<'a> {
 
         let fetch_vars = build_fetch_variables(fetch, parent_data, client_variables);
 
+        let mut request = SubgraphRequest {
+            url: url.clone(),
+            query: fetch.operation.document_str.clone(),
+            operation_name: fetch.operation_name.clone(),
+            variables: fetch_vars,
+            headers: vec![],
+        };
+
+        // Call subgraph request hook.
+        if let Some(hook) = &self.on_subgraph_request {
+            if let Err(message) = hook(&fetch.service_name, &mut request) {
+                return Ok(ExecutionResult {
+                    data: None,
+                    errors: vec![ExecutionResultError { message }],
+                });
+            }
+        }
+
         tracing::debug!(
             service = %fetch.service_name,
-            operation = %fetch.operation.document_str,
+            operation = %request.query,
             "dispatching fetch"
         );
 
-        let response = self
-            .client
-            .execute(SubgraphRequest {
-                url: url.clone(),
-                query: fetch.operation.document_str.clone(),
-                operation_name: fetch.operation_name.clone(),
-                variables: fetch_vars,
-                headers: vec![],
-            })
-            .await?;
+        let mut response = self.client.execute(request).await?;
+
+        // Call subgraph response hook.
+        if let Some(hook) = &self.on_subgraph_response {
+            hook(&fetch.service_name, &mut response);
+        }
 
         let errors = response
             .errors

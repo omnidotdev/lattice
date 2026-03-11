@@ -1,7 +1,10 @@
 use lattice_config::PluginConfig;
 
 use crate::error::PluginError;
-use crate::hooks::{HookResult, OnRequestInput, OnResponseInput};
+use crate::hooks::{
+    HookResult, OnHttpResponseInput, OnOperationResponseInput, OnRequestInput, OnResponseInput, OnSubgraphRequestInput,
+    OnSubgraphResponseInput,
+};
 use crate::instance::PluginInstance;
 
 /// Manage loaded plugin instances and dispatch hooks.
@@ -69,6 +72,155 @@ impl PluginManager {
         HookResult::Continue
     }
 
+    /// Run `on_gateway_request` across all plugins (backward-compatible with `on_request`).
+    ///
+    /// Returns the first `Reject` or `Modify` result, or `Continue` if all
+    /// plugins continue.
+    pub fn on_gateway_request(&self, input: &OnRequestInput) -> HookResult {
+        for plugin in &self.plugins {
+            if !plugin.has_hook("on_gateway_request") && !plugin.has_hook("on_request") {
+                continue;
+            }
+
+            match plugin.on_gateway_request(input) {
+                Ok(HookResult::Continue) => {}
+                Ok(result @ (HookResult::Modify { .. } | HookResult::Reject { .. })) => {
+                    tracing::info!(plugin = plugin.name(), "on_gateway_request hook intercepted");
+                    return result;
+                }
+                Err(e) => {
+                    tracing::warn!(plugin = plugin.name(), error = %e, "on_gateway_request plugin error, skipping");
+                }
+            }
+        }
+
+        HookResult::Continue
+    }
+
+    /// Run `on_gateway_response` across all plugins (backward-compatible with `on_response`).
+    ///
+    /// Returns the first `Modify` result, or `Continue` if all continue.
+    pub fn on_gateway_response(&self, input: &OnResponseInput) -> HookResult {
+        for plugin in &self.plugins {
+            if !plugin.has_hook("on_gateway_response") && !plugin.has_hook("on_response") {
+                continue;
+            }
+
+            match plugin.on_gateway_response(input) {
+                Ok(HookResult::Continue | HookResult::Reject { .. }) => {}
+                Ok(result @ HookResult::Modify { .. }) => {
+                    tracing::info!(plugin = plugin.name(), "on_gateway_response hook modified response");
+                    return result;
+                }
+                Err(e) => {
+                    tracing::warn!(plugin = plugin.name(), error = %e, "on_gateway_response plugin error, skipping");
+                }
+            }
+        }
+
+        HookResult::Continue
+    }
+
+    /// Run `on_subgraph_request` across all plugins.
+    ///
+    /// Returns the first `Reject` or `Modify` result, or `Continue` if all
+    /// plugins continue.
+    pub fn on_subgraph_request(&self, input: &OnSubgraphRequestInput) -> HookResult {
+        for plugin in &self.plugins {
+            if !plugin.has_hook("on_subgraph_request") {
+                continue;
+            }
+
+            match plugin.on_subgraph_request(input) {
+                Ok(HookResult::Continue) => {}
+                Ok(result @ (HookResult::Modify { .. } | HookResult::Reject { .. })) => {
+                    tracing::info!(plugin = plugin.name(), "on_subgraph_request hook intercepted");
+                    return result;
+                }
+                Err(e) => {
+                    tracing::warn!(plugin = plugin.name(), error = %e, "on_subgraph_request plugin error, skipping");
+                }
+            }
+        }
+
+        HookResult::Continue
+    }
+
+    /// Run `on_subgraph_response` across all plugins.
+    ///
+    /// Returns the first `Modify` result, or `Continue` if all continue.
+    /// Cannot reject (modify only).
+    pub fn on_subgraph_response(&self, input: &OnSubgraphResponseInput) -> HookResult {
+        for plugin in &self.plugins {
+            if !plugin.has_hook("on_subgraph_response") {
+                continue;
+            }
+
+            match plugin.on_subgraph_response(input) {
+                Ok(HookResult::Continue | HookResult::Reject { .. }) => {}
+                Ok(result @ HookResult::Modify { .. }) => {
+                    tracing::info!(plugin = plugin.name(), "on_subgraph_response hook modified");
+                    return result;
+                }
+                Err(e) => {
+                    tracing::warn!(plugin = plugin.name(), error = %e, "on_subgraph_response plugin error, skipping");
+                }
+            }
+        }
+
+        HookResult::Continue
+    }
+
+    /// Run `on_operation_response` across all plugins.
+    ///
+    /// Returns the first `Modify` result, or `Continue` if all continue.
+    /// Cannot reject (modify only).
+    pub fn on_operation_response(&self, input: &OnOperationResponseInput) -> HookResult {
+        for plugin in &self.plugins {
+            if !plugin.has_hook("on_operation_response") {
+                continue;
+            }
+
+            match plugin.on_operation_response(input) {
+                Ok(HookResult::Continue | HookResult::Reject { .. }) => {}
+                Ok(result @ HookResult::Modify { .. }) => {
+                    tracing::info!(plugin = plugin.name(), "on_operation_response hook modified");
+                    return result;
+                }
+                Err(e) => {
+                    tracing::warn!(plugin = plugin.name(), error = %e, "on_operation_response plugin error, skipping");
+                }
+            }
+        }
+
+        HookResult::Continue
+    }
+
+    /// Run `on_http_response` across all plugins.
+    ///
+    /// Returns the first `Modify` result, or `Continue` if all continue.
+    /// Cannot reject (modify only).
+    pub fn on_http_response(&self, input: &OnHttpResponseInput) -> HookResult {
+        for plugin in &self.plugins {
+            if !plugin.has_hook("on_http_response") {
+                continue;
+            }
+
+            match plugin.on_http_response(input) {
+                Ok(HookResult::Continue | HookResult::Reject { .. }) => {}
+                Ok(result @ HookResult::Modify { .. }) => {
+                    tracing::info!(plugin = plugin.name(), "on_http_response hook modified");
+                    return result;
+                }
+                Err(e) => {
+                    tracing::warn!(plugin = plugin.name(), error = %e, "on_http_response plugin error, skipping");
+                }
+            }
+        }
+
+        HookResult::Continue
+    }
+
     /// Number of loaded plugins.
     #[must_use]
     pub const fn len(&self) -> usize {
@@ -96,7 +248,17 @@ fn yaml_value_to_string(v: &serde_yaml::Value) -> String {
 /// Warn about hook names that aren't recognized.
 fn warn_unrecognized_hooks(name: &str, hooks: &[String]) {
     for hook in hooks {
-        if !matches!(hook.as_str(), "on_request" | "on_response") {
+        if !matches!(
+            hook.as_str(),
+            "on_request"
+                | "on_response"
+                | "on_gateway_request"
+                | "on_gateway_response"
+                | "on_subgraph_request"
+                | "on_subgraph_response"
+                | "on_operation_response"
+                | "on_http_response"
+        ) {
             tracing::warn!(plugin = %name, hook = %hook, "unrecognized hook name");
         }
     }

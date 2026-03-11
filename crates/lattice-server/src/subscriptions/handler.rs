@@ -5,7 +5,7 @@ use axum::extract::ws::{CloseFrame, Message, WebSocket};
 use futures::{SinkExt, StreamExt};
 use tokio::sync::mpsc;
 
-use crate::AppState;
+use crate::state::AppState;
 
 use super::protocol::{ClientMessage, ServerMessage, SubscribePayload, close_code};
 use super::upstream;

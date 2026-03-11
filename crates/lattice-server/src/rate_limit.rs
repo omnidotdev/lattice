@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use axum::{
     Json,
     body::Body,
@@ -9,14 +7,16 @@ use axum::{
     response::{IntoResponse, Response},
 };
 
-use crate::AppState;
+use crate::SharedState;
 
 /// Rate limiting middleware.
 ///
 /// Extract client IP from the `x-forwarded-for` header and check the rate
 /// limiter. Return 429 Too Many Requests when the limit is exceeded.
 /// Fail open if the rate limiter encounters an error.
-pub async fn rate_limit(State(state): State<Arc<AppState>>, request: Request<Body>, next: Next) -> Response {
+pub async fn rate_limit(State(shared): State<SharedState>, request: Request<Body>, next: Next) -> Response {
+    let state = shared.load_full();
+
     let Some(limiter) = &state.rate_limiter else {
         return next.run(request).await;
     };

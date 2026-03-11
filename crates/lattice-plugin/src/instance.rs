@@ -4,7 +4,10 @@ use std::sync::Mutex;
 use extism::{Manifest, Plugin, Wasm};
 
 use crate::error::PluginError;
-use crate::hooks::{HookResult, OnRequestInput, OnResponseInput};
+use crate::hooks::{
+    HookResult, OnHttpResponseInput, OnOperationResponseInput, OnRequestInput, OnResponseInput, OnSubgraphRequestInput,
+    OnSubgraphResponseInput,
+};
 
 /// A loaded WASI plugin instance.
 pub struct PluginInstance {
@@ -85,6 +88,64 @@ impl PluginInstance {
     pub fn on_response(&self, input: &OnResponseInput) -> Result<HookResult, PluginError> {
         let bytes = serde_json::to_vec(input).map_err(|e| PluginError::Hook(format!("serialize: {e}")))?;
         self.call_hook("on_response", &bytes)
+    }
+
+    /// Call the `on_gateway_request` hook (alias for `on_request`).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`PluginError::Hook`] if the plugin call fails.
+    pub fn on_gateway_request(&self, input: &OnRequestInput) -> Result<HookResult, PluginError> {
+        self.on_request(input)
+    }
+
+    /// Call the `on_gateway_response` hook (alias for `on_response`).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`PluginError::Hook`] if the plugin call fails.
+    pub fn on_gateway_response(&self, input: &OnResponseInput) -> Result<HookResult, PluginError> {
+        self.on_response(input)
+    }
+
+    /// Call the `on_subgraph_request` hook.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`PluginError::Hook`] if the plugin call fails.
+    pub fn on_subgraph_request(&self, input: &OnSubgraphRequestInput) -> Result<HookResult, PluginError> {
+        let bytes = serde_json::to_vec(input).map_err(|e| PluginError::Hook(format!("serialize: {e}")))?;
+        self.call_hook("on_subgraph_request", &bytes)
+    }
+
+    /// Call the `on_subgraph_response` hook.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`PluginError::Hook`] if the plugin call fails.
+    pub fn on_subgraph_response(&self, input: &OnSubgraphResponseInput) -> Result<HookResult, PluginError> {
+        let bytes = serde_json::to_vec(input).map_err(|e| PluginError::Hook(format!("serialize: {e}")))?;
+        self.call_hook("on_subgraph_response", &bytes)
+    }
+
+    /// Call the `on_operation_response` hook.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`PluginError::Hook`] if the plugin call fails.
+    pub fn on_operation_response(&self, input: &OnOperationResponseInput) -> Result<HookResult, PluginError> {
+        let bytes = serde_json::to_vec(input).map_err(|e| PluginError::Hook(format!("serialize: {e}")))?;
+        self.call_hook("on_operation_response", &bytes)
+    }
+
+    /// Call the `on_http_response` hook.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`PluginError::Hook`] if the plugin call fails.
+    pub fn on_http_response(&self, input: &OnHttpResponseInput) -> Result<HookResult, PluginError> {
+        let bytes = serde_json::to_vec(input).map_err(|e| PluginError::Hook(format!("serialize: {e}")))?;
+        self.call_hook("on_http_response", &bytes)
     }
 }
 

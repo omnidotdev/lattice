@@ -1,11 +1,10 @@
 mod graphql;
+mod mcp;
 pub mod middleware;
 mod playground;
 mod rate_limit;
 mod state;
 mod subscriptions;
-
-use std::sync::Arc;
 
 use axum::{
     Router,
@@ -14,31 +13,45 @@ use axum::{
     routing::{get, post},
 };
 
-pub use state::AppState;
+pub use state::{AppState, SharedState};
 
 /// Handle WebSocket upgrade for GraphQL subscriptions.
-async fn ws_upgrade(ws: WebSocketUpgrade, State(state): State<Arc<AppState>>) -> Response {
+async fn ws_upgrade(ws: WebSocketUpgrade, State(shared): State<SharedState>) -> Response {
+    let state = shared.load_full();
     ws.protocols(["graphql-transport-ws"])
         .on_upgrade(move |socket| subscriptions::handle_socket(socket, state))
 }
 
 /// Build the axum router with all routes.
-pub fn router(state: Arc<AppState>) -> Router {
+pub fn router(state: SharedState) -> Router {
     let mut app = Router::new().route("/graphql", post(graphql::handle).get(ws_upgrade));
 
     // Serve GraphiQL when playground is enabled (default: true).
-    let playground_enabled = state.config.server.playground.unwrap_or(true);
+    let playground_enabled = state.load().config.server.playground.unwrap_or(true);
 
     if playground_enabled {
         app = app.route("/", get(playground::graphiql));
     }
 
-    app.layer(axum::middleware::from_fn_with_state(state.clone(), middleware::auth))
+    // Apply auth + rate-limit middleware to the main routes.
+    app = app
+        .layer(axum::middleware::from_fn_with_state(state.clone(), middleware::auth))
         .layer(axum::middleware::from_fn_with_state(
             state.clone(),
             rate_limit::rate_limit,
-        ))
-        .with_state(state)
+        ));
+
+    // Mount MCP routes outside the auth/rate-limit middleware stack so
+    // AI tool clients can reach the MCP server without a JWT.
+    if let Some(mcp_config) = &state.load().config.mcp {
+        if mcp_config.enabled {
+            let path = mcp_config.path.clone();
+            tracing::info!(path = %path, "MCP server enabled");
+            app = app.merge(Router::new().nest(&path, mcp::router()));
+        }
+    }
+
+    app.with_state(state)
 }
 
 #[cfg(test)]
@@ -48,6 +61,7 @@ mod tests {
     use std::sync::Mutex;
 
     use super::*;
+    use arc_swap::ArcSwap;
     use axum::body::Body;
     use axum::http::{Request, StatusCode};
     use lattice_rate_limit::{RateLimitError, RateLimitResult, RateLimiter};
@@ -132,8 +146,8 @@ supergraph:
         .unwrap()
     }
 
-    fn test_state() -> Arc<AppState> {
-        Arc::new(AppState::new(test_config(), None))
+    fn test_state() -> SharedState {
+        std::sync::Arc::new(ArcSwap::from(std::sync::Arc::new(AppState::new(test_config(), None))))
     }
 
     #[tokio::test]
@@ -222,12 +236,12 @@ supergraph:
 
     #[tokio::test]
     async fn rate_limit_returns_429() {
-        let limiter = Arc::new(InMemoryRateLimiter::new());
+        let limiter = std::sync::Arc::new(InMemoryRateLimiter::new());
 
         let mut state = AppState::new(test_config(), None);
         state.rate_limiter = Some(limiter);
         state.rate_limit_defaults = Some((1, 60));
-        let state = Arc::new(state);
+        let state: SharedState = std::sync::Arc::new(ArcSwap::from(std::sync::Arc::new(state)));
         let app = router(state);
 
         let body = serde_json::json!({ "query": "{ __typename }" });

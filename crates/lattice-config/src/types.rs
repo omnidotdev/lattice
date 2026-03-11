@@ -18,6 +18,8 @@ pub struct Config {
     pub telemetry: Option<TelemetryConfig>,
     #[serde(default)]
     pub plugins: Option<Vec<PluginConfig>>,
+    #[serde(default)]
+    pub mcp: Option<McpConfig>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -126,6 +128,18 @@ fn default_log_level() -> String {
 
 fn default_log_format() -> String {
     "json".into()
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct McpConfig {
+    #[serde(default)]
+    pub enabled: bool,
+    #[serde(default = "default_mcp_path")]
+    pub path: String,
+}
+
+fn default_mcp_path() -> String {
+    "/mcp".into()
 }
 
 #[derive(Debug, Deserialize)]

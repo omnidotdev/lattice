@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use arc_swap::ArcSwap;
 use lattice_auth::JwtValidator;
 use lattice_cache::ValkeyCache;
 use lattice_config::Config;
@@ -8,6 +9,9 @@ use lattice_execution::SubgraphClient;
 use lattice_federation::FederationPlanner;
 use lattice_plugin::PluginManager;
 use lattice_rate_limit::{RateLimiter, ValkeyRateLimiter};
+
+/// Atomically swappable shared state for hot-reload support.
+pub type SharedState = Arc<ArcSwap<AppState>>;
 
 /// Shared application state for the axum server.
 pub struct AppState {
@@ -28,6 +32,8 @@ pub struct AppState {
     pub entity_cache: Option<ValkeyCache>,
     /// Cache TTL in seconds.
     pub cache_ttl: u64,
+    /// Raw supergraph SDL, retained for MCP introspection.
+    pub supergraph_sdl: Option<String>,
 }
 
 impl AppState {
@@ -72,6 +78,7 @@ impl AppState {
             plugin_manager: None,
             entity_cache,
             cache_ttl,
+            supergraph_sdl: supergraph_sdl.map(String::from),
         }
     }
 }

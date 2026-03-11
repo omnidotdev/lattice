@@ -31,6 +31,10 @@ enum Commands {
         /// Path to lattice.yaml config file.
         #[arg(short, long, default_value = "lattice.yaml")]
         config: PathBuf,
+
+        /// Watch config file for changes and reload without restart.
+        #[arg(long)]
+        hot_reload: bool,
     },
 
     /// Validate a Lattice configuration file.
@@ -58,9 +62,9 @@ fn main() {
 fn run(command: Commands) -> Result<(), Box<dyn std::error::Error>> {
     match command {
         Commands::Compose { config, output } => compose::run(&config, &output)?,
-        Commands::Serve { config } => {
+        Commands::Serve { config, hot_reload } => {
             let rt = tokio::runtime::Runtime::new()?;
-            rt.block_on(serve::run(&config))?;
+            rt.block_on(serve::run(&config, hot_reload))?;
         }
         Commands::Check { config } => check::run(&config)?,
     }

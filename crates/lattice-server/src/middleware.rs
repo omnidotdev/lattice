@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use axum::{
     extract::State,
     http::{Request, StatusCode},
@@ -7,7 +5,7 @@ use axum::{
     response::{IntoResponse, Response},
 };
 
-use crate::AppState;
+use crate::SharedState;
 
 /// Build a 401 JSON response matching the GraphQL error shape.
 fn unauthorized(message: &str) -> Response {
@@ -25,7 +23,9 @@ fn unauthorized(message: &str) -> Response {
 /// header is required (or the custom header configured via `header_name`).
 /// On success the decoded [`lattice_auth::Claims`] are inserted into request
 /// extensions.
-pub async fn auth(State(state): State<Arc<AppState>>, mut request: Request<axum::body::Body>, next: Next) -> Response {
+pub async fn auth(State(shared): State<SharedState>, mut request: Request<axum::body::Body>, next: Next) -> Response {
+    let state = shared.load_full();
+
     let Some(ref validator) = state.jwt_validator else {
         // No auth configured — pass through.
         return next.run(request).await;

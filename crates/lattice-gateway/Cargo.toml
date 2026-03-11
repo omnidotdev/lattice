@@ -16,6 +16,7 @@ lattice-config = { workspace = true }
 lattice-plugin = { workspace = true }
 lattice-telemetry = { workspace = true }
 lattice-server = { workspace = true }
+arc-swap = { workspace = true }
 axum = { workspace = true }
 clap = { workspace = true }
 tokio = { workspace = true }
