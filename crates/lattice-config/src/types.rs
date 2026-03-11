@@ -49,7 +49,20 @@ pub struct SubgraphConfig {
 
 #[derive(Debug, Deserialize)]
 pub struct AuthConfig {
+    /// Legacy single JWT provider (backward compat).
     pub jwt: Option<JwtConfig>,
+    /// Default behavior when no provider succeeds: "deny" or "anonymous".
+    #[serde(default)]
+    pub default: Option<String>,
+    /// JWT/JWKS providers, evaluated in order.
+    #[serde(default)]
+    pub providers: Option<Vec<JwtProviderConfig>>,
+    /// Static API key authentication.
+    #[serde(default)]
+    pub api_keys: Option<ApiKeysConfig>,
+    /// Per-resource auth overrides.
+    #[serde(default)]
+    pub resources: Option<ResourceAuthConfig>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -63,6 +76,57 @@ pub struct JwtConfig {
 
 fn default_auth_header() -> String {
     "Authorization".into()
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct JwtProviderConfig {
+    pub jwks_url: String,
+    #[serde(default)]
+    pub issuer: Option<String>,
+    /// Single string or array of strings.
+    #[serde(default)]
+    pub audience: Option<serde_json::Value>,
+    #[serde(default = "default_auth_header")]
+    pub header_name: String,
+    /// Header value prefix (default: "Bearer ").
+    #[serde(default)]
+    pub header_prefix: Option<String>,
+    /// JWKS polling interval in seconds.
+    #[serde(default)]
+    pub poll_interval: Option<u64>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct ApiKeysConfig {
+    #[serde(default = "default_api_key_header")]
+    pub header_name: String,
+    pub keys: Vec<ApiKeyEntry>,
+}
+
+fn default_api_key_header() -> String {
+    "X-API-Key".into()
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct ApiKeyEntry {
+    pub name: String,
+    pub value: String,
+    #[serde(default)]
+    pub claims: std::collections::HashMap<String, serde_json::Value>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct ResourceAuthConfig {
+    #[serde(default)]
+    pub graphql: Option<ResourceAuthOverride>,
+    #[serde(default)]
+    pub mcp: Option<ResourceAuthOverride>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct ResourceAuthOverride {
+    #[serde(default)]
+    pub default: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]

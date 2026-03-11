@@ -2,7 +2,10 @@ mod env;
 mod types;
 mod watcher;
 
-pub use types::{Config, JwtConfig, McpConfig, PluginConfig, TelemetryConfig};
+pub use types::{
+    ApiKeyEntry, ApiKeysConfig, Config, JwtConfig, JwtProviderConfig, McpConfig, PluginConfig, ResourceAuthConfig,
+    ResourceAuthOverride, TelemetryConfig,
+};
 pub use watcher::ConfigWatcher;
 
 use std::path::Path;
@@ -365,5 +368,61 @@ plugins:
         assert_eq!(plugins[0].name, "my-auth");
         assert_eq!(plugins[0].hooks, vec!["on_request"]);
         assert!(plugins[0].config.contains_key("allowed_roles"));
+    }
+
+    #[test]
+    fn config_with_multi_provider_auth() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("lattice.yaml");
+        let mut f = std::fs::File::create(&path).unwrap();
+        writeln!(
+            f,
+            r#"
+server:
+  listen: "0.0.0.0:4000"
+supergraph:
+  path: ./supergraph.graphql
+auth:
+  default: deny
+  providers:
+    - jwks_url: https://idp1.example.com/.well-known/jwks.json
+      issuer: idp1.example.com
+      audience: my-api
+      poll_interval: 60
+    - jwks_url: https://idp2.example.com/.well-known/jwks.json
+      issuer: idp2.example.com
+      audience:
+        - my-api
+        - other-api
+      header_name: X-Auth-Token
+      header_prefix: "Token "
+  api_keys:
+    header_name: X-API-Key
+    keys:
+      - name: mobile-app
+        value: secret-key-1
+        claims:
+          contract: public
+          role: client
+  resources:
+    graphql: {{}}
+    mcp:
+      default: anonymous
+"#
+        )
+        .unwrap();
+
+        let config = load(&path).unwrap();
+        let auth = config.auth.unwrap();
+        assert_eq!(auth.default, Some("deny".into()));
+        let providers = auth.providers.unwrap();
+        assert_eq!(providers.len(), 2);
+        assert_eq!(providers[0].poll_interval, Some(60));
+        assert_eq!(providers[1].header_prefix, Some("Token ".into()));
+        let api_keys = auth.api_keys.unwrap();
+        assert_eq!(api_keys.keys.len(), 1);
+        assert_eq!(api_keys.keys[0].name, "mobile-app");
+        let resources = auth.resources.unwrap();
+        assert_eq!(resources.mcp.unwrap().default, Some("anonymous".into()));
     }
 }
