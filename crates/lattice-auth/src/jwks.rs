@@ -56,4 +56,31 @@ impl JwksProvider {
         *self.cache.write().await = None;
         tracing::debug!(url = %self.url, "invalidated JWKS cache");
     }
+
+    /// Start a background task that invalidates the cache at the given interval.
+    #[must_use]
+    pub fn start_polling(&self, interval_seconds: u64) -> tokio::task::JoinHandle<()> {
+        let provider = self.clone();
+        let interval = std::time::Duration::from_secs(interval_seconds);
+        tokio::spawn(async move {
+            loop {
+                tokio::time::sleep(interval).await;
+                provider.invalidate().await;
+                tracing::debug!(url = %provider.url, "JWKS cache invalidated by polling");
+            }
+        })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn polling_provider_invalidates_cache() {
+        let provider = JwksProvider::new("https://example.com/.well-known/jwks.json");
+        let handle = provider.start_polling(1);
+        assert!(!handle.is_finished());
+        handle.abort();
+    }
 }
