@@ -1,4 +1,6 @@
+mod check;
 mod compose;
+mod serve;
 
 use std::path::PathBuf;
 
@@ -23,6 +25,20 @@ enum Commands {
         #[arg(short, long, default_value = "supergraph.graphql")]
         output: PathBuf,
     },
+
+    /// Start the Lattice gateway server.
+    Serve {
+        /// Path to lattice.yaml config file.
+        #[arg(short, long, default_value = "lattice.yaml")]
+        config: PathBuf,
+    },
+
+    /// Validate a Lattice configuration file.
+    Check {
+        /// Path to lattice.yaml config file.
+        #[arg(short, long, default_value = "lattice.yaml")]
+        config: PathBuf,
+    },
 }
 
 fn main() {
@@ -32,12 +48,21 @@ fn main() {
 
     let cli = Cli::parse();
 
-    match cli.command {
-        Commands::Compose { config, output } => {
-            if let Err(e) = compose::run(&config, &output) {
-                tracing::error!("{e}");
-                std::process::exit(1);
-            }
-        }
+    let result = run(cli.command);
+    if let Err(e) = result {
+        tracing::error!("{e}");
+        std::process::exit(1);
     }
+}
+
+fn run(command: Commands) -> Result<(), Box<dyn std::error::Error>> {
+    match command {
+        Commands::Compose { config, output } => compose::run(&config, &output)?,
+        Commands::Serve { config } => {
+            let rt = tokio::runtime::Runtime::new()?;
+            rt.block_on(serve::run(&config))?;
+        }
+        Commands::Check { config } => check::run(&config)?,
+    }
+    Ok(())
 }

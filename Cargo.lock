@@ -1884,11 +1884,16 @@ dependencies = [
 name = "lattice-cli"
 version = "0.1.0"
 dependencies = [
+ "axum",
  "cargo-husky",
  "clap",
  "lattice-config",
+ "lattice-plugin",
+ "lattice-server",
+ "lattice-telemetry",
  "serde_json",
  "thiserror 2.0.18",
+ "tokio",
  "tracing",
  "tracing-subscriber",
 ]
