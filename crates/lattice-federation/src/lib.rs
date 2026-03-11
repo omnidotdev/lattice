@@ -1,7 +1,9 @@
 mod error;
+mod filter;
 mod planner;
 
 pub use error::FederationError;
+pub use filter::filter_sdl;
 pub use hive_router_query_planner::planner::plan_nodes::{ConditionNode, FetchNode, FlattenNode, PlanNode, QueryPlan};
 pub use planner::FederationPlanner;
 

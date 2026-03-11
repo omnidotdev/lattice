@@ -20,6 +20,8 @@ pub struct Config {
     pub plugins: Option<Vec<PluginConfig>>,
     #[serde(default)]
     pub mcp: Option<McpConfig>,
+    #[serde(default)]
+    pub contracts: Option<ContractsConfig>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -204,6 +206,31 @@ pub struct McpConfig {
 
 fn default_mcp_path() -> String {
     "/mcp".into()
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct ContractsConfig {
+    #[serde(default = "default_contract_key")]
+    pub default: String,
+    #[serde(default = "default_contract_header")]
+    pub header_name: String,
+    pub variants: HashMap<String, ContractVariantConfig>,
+}
+
+fn default_contract_key() -> String {
+    "full".into()
+}
+
+fn default_contract_header() -> String {
+    "X-Contract-Key".into()
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct ContractVariantConfig {
+    #[serde(default)]
+    pub include: Vec<String>,
+    #[serde(default)]
+    pub exclude: Vec<String>,
 }
 
 #[derive(Debug, Deserialize)]

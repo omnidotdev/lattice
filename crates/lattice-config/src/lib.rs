@@ -3,8 +3,8 @@ mod types;
 mod watcher;
 
 pub use types::{
-    ApiKeyEntry, ApiKeysConfig, Config, JwtConfig, JwtProviderConfig, McpConfig, PluginConfig, ResourceAuthConfig,
-    ResourceAuthOverride, TelemetryConfig,
+    ApiKeyEntry, ApiKeysConfig, Config, ContractVariantConfig, ContractsConfig, JwtConfig, JwtProviderConfig,
+    McpConfig, PluginConfig, ResourceAuthConfig, ResourceAuthOverride, TelemetryConfig,
 };
 pub use watcher::ConfigWatcher;
 
@@ -368,6 +368,48 @@ plugins:
         assert_eq!(plugins[0].name, "my-auth");
         assert_eq!(plugins[0].hooks, vec!["on_request"]);
         assert!(plugins[0].config.contains_key("allowed_roles"));
+    }
+
+    #[test]
+    fn config_with_contracts() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("lattice.yaml");
+        let mut f = std::fs::File::create(&path).unwrap();
+        writeln!(
+            f,
+            r#"
+server:
+  listen: "0.0.0.0:4000"
+supergraph:
+  path: ./supergraph.graphql
+contracts:
+  default: full
+  header_name: X-Contract-Key
+  variants:
+    public:
+      exclude:
+        - internal
+        - admin
+    partner:
+      include:
+        - public
+        - partner
+      exclude:
+        - deprecated
+    internal:
+      exclude:
+        - deprecated
+"#
+        )
+        .unwrap();
+
+        let config = load(&path).unwrap();
+        let contracts = config.contracts.unwrap();
+        assert_eq!(contracts.default, "full");
+        assert_eq!(contracts.header_name, "X-Contract-Key");
+        assert_eq!(contracts.variants.len(), 3);
+        assert_eq!(contracts.variants["public"].exclude, vec!["internal", "admin"]);
+        assert_eq!(contracts.variants["partner"].include, vec!["public", "partner"]);
     }
 
     #[test]
