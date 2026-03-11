@@ -43,6 +43,9 @@ pub fn run(config_path: &Path, output_path: &Path) -> Result<(), ComposeError> {
             if let Some(schema) = sg.schema {
                 obj["schema_path"] = serde_json::Value::String(schema);
             }
+            if !sg.headers.is_empty() {
+                obj["headers"] = serde_json::json!(sg.headers);
+            }
             obj
         })
         .collect();

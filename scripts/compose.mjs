@@ -14,9 +14,13 @@ const services = await Promise.all(
 		if (sg.schema_path) {
 			sdl = readFileSync(sg.schema_path, "utf-8");
 		} else {
+			const headers = {
+				"Content-Type": "application/json",
+				...(sg.headers || {}),
+			};
 			const response = await fetch(sg.url, {
 				method: "POST",
-				headers: { "Content-Type": "application/json" },
+				headers,
 				body: JSON.stringify({ query: `{ _service { sdl } }` }),
 			});
 			const json = await response.json();

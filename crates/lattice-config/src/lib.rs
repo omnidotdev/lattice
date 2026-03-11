@@ -11,21 +11,97 @@ use thiserror::Error;
 pub enum ConfigError {
     #[error("failed to read config file: {0}")]
     Read(#[from] std::io::Error),
-    #[error("failed to parse config: {0}")]
-    Parse(#[from] serde_yaml::Error),
+    #[error("failed to parse YAML config: {0}")]
+    ParseYaml(#[from] serde_yaml::Error),
+    #[error("failed to parse JSON config: {0}")]
+    ParseJson(#[from] serde_json::Error),
 }
 
-/// Load config from a YAML file, expanding `${VAR}` environment variables.
+/// Load config from a file, expanding `${VAR}` environment variables.
+///
+/// Supports YAML (`.yaml`, `.yml`) and JSON/JSONC (`.json`, `.jsonc`) formats.
+/// JSONC files have line comments (`//`) and block comments (`/* */`) stripped
+/// before parsing.
 ///
 /// # Errors
 ///
-/// Returns [`ConfigError::Read`] if the file cannot be read, or
-/// [`ConfigError::Parse`] if the YAML is invalid.
+/// Returns [`ConfigError::Read`] if the file cannot be read, or a parse error
+/// if the content is invalid.
 pub fn load(path: &Path) -> Result<Config, ConfigError> {
     let raw = std::fs::read_to_string(path)?;
     let expanded = env::expand_vars(&raw);
-    let config: Config = serde_yaml::from_str(&expanded)?;
-    Ok(config)
+
+    let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("yaml");
+
+    match ext {
+        "json" => Ok(serde_json::from_str(&expanded)?),
+        "jsonc" => {
+            let stripped = strip_json_comments(&expanded);
+            Ok(serde_json::from_str(&stripped)?)
+        }
+        _ => Ok(serde_yaml::from_str(&expanded)?),
+    }
+}
+
+/// Strip single-line (`//`) and block (`/* */`) comments from JSONC content.
+fn strip_json_comments(input: &str) -> String {
+    let mut output = String::with_capacity(input.len());
+    let mut chars = input.chars().peekable();
+    let mut in_string = false;
+
+    while let Some(ch) = chars.next() {
+        if in_string {
+            output.push(ch);
+            if ch == '\\' {
+                // Skip escaped character.
+                if let Some(escaped) = chars.next() {
+                    output.push(escaped);
+                }
+            } else if ch == '"' {
+                in_string = false;
+            }
+            continue;
+        }
+
+        if ch == '"' {
+            in_string = true;
+            output.push(ch);
+            continue;
+        }
+
+        if ch == '/' {
+            match chars.peek() {
+                Some('/') => {
+                    // Line comment — skip until newline.
+                    for c in chars.by_ref() {
+                        if c == '\n' {
+                            output.push('\n');
+                            break;
+                        }
+                    }
+                }
+                Some('*') => {
+                    // Block comment — skip until `*/`.
+                    chars.next(); // consume '*'
+                    while let Some(c) = chars.next() {
+                        if c == '*' && chars.peek() == Some(&'/') {
+                            chars.next(); // consume '/'
+                            break;
+                        }
+                        // Preserve newlines for line numbering in error messages.
+                        if c == '\n' {
+                            output.push('\n');
+                        }
+                    }
+                }
+                _ => output.push(ch),
+            }
+        } else {
+            output.push(ch);
+        }
+    }
+
+    output
 }
 
 #[cfg(test)]
@@ -55,8 +131,65 @@ supergraph:
     }
 
     #[test]
+    fn load_json_config() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("lattice.json");
+        std::fs::write(
+            &path,
+            r#"{
+                "server": { "listen": "0.0.0.0:5000" },
+                "supergraph": { "path": "./sg.graphql" }
+            }"#,
+        )
+        .unwrap();
+
+        let config = load(&path).unwrap();
+        assert_eq!(config.server.listen, "0.0.0.0:5000");
+    }
+
+    #[test]
+    fn load_jsonc_config() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("lattice.jsonc");
+        std::fs::write(
+            &path,
+            r#"{
+                // Server settings
+                "server": { "listen": "0.0.0.0:5000" },
+                /* Supergraph */
+                "supergraph": { "path": "./sg.graphql" }
+            }"#,
+        )
+        .unwrap();
+
+        let config = load(&path).unwrap();
+        assert_eq!(config.server.listen, "0.0.0.0:5000");
+    }
+
+    #[test]
+    fn strip_comments_preserves_strings() {
+        let input = r#"{"url": "http://example.com/path"}"#;
+        assert_eq!(strip_json_comments(input), input);
+    }
+
+    #[test]
+    fn strip_comments_removes_line_comments() {
+        let input = "{\n// comment\n\"key\": \"value\"\n}";
+        let stripped = strip_json_comments(input);
+        assert!(!stripped.contains("comment"));
+        assert!(stripped.contains("\"key\""));
+    }
+
+    #[test]
+    fn strip_comments_removes_block_comments() {
+        let input = r#"{"key": /* block */ "value"}"#;
+        let stripped = strip_json_comments(input);
+        assert!(!stripped.contains("block"));
+        assert!(stripped.contains("\"value\""));
+    }
+
+    #[test]
     fn env_var_expansion() {
-        // Use CARGO_MANIFEST_DIR which is always set during `cargo test`.
         let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap();
 
         let dir = tempfile::tempdir().unwrap();
@@ -100,6 +233,35 @@ subgraphs:
         let subgraphs = config.subgraphs.unwrap();
         assert_eq!(subgraphs.len(), 2);
         assert_eq!(subgraphs["users"].url.as_deref(), Some("http://users:3000/graphql"));
+    }
+
+    #[test]
+    fn config_with_subgraph_headers() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("lattice.yaml");
+        let mut f = std::fs::File::create(&path).unwrap();
+        writeln!(
+            f,
+            r#"
+server:
+  listen: "0.0.0.0:4000"
+supergraph:
+  path: ./supergraph.graphql
+subgraphs:
+  users:
+    url: http://users:3000/graphql
+    headers:
+      Authorization: "Bearer secret"
+"#
+        )
+        .unwrap();
+
+        let config = load(&path).unwrap();
+        let subgraphs = config.subgraphs.unwrap();
+        assert_eq!(
+            subgraphs["users"].headers.get("Authorization").unwrap(),
+            "Bearer secret"
+        );
     }
 
     #[test]

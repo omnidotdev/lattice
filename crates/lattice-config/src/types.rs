@@ -43,6 +43,8 @@ pub struct SupergraphConfig {
 pub struct SubgraphConfig {
     pub url: Option<String>,
     pub schema: Option<String>,
+    #[serde(default)]
+    pub headers: HashMap<String, String>,
 }
 
 #[derive(Debug, Deserialize)]
