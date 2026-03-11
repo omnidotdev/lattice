@@ -1,3 +1,4 @@
+pub mod contracts;
 mod graphql;
 mod mcp;
 pub mod middleware;
@@ -354,5 +355,66 @@ auth:
         // Second request is rate limited.
         let resp = app.oneshot(make_request()).await.unwrap();
         assert_eq!(resp.status(), StatusCode::TOO_MANY_REQUESTS);
+    }
+
+    #[tokio::test]
+    async fn contracts_config_builds_registry() {
+        let config: lattice_config::Config = serde_yaml::from_str(
+            r#"
+server:
+  listen: "0.0.0.0:4000"
+supergraph:
+  path: ./supergraph.graphql
+contracts:
+  default: full
+  variants:
+    public:
+      exclude:
+        - internal
+"#,
+        )
+        .unwrap();
+
+        // Need a valid supergraph SDL with tags to build the registry.
+        let sdl = r#"
+            schema
+                @link(url: "https://specs.apollo.dev/link/v1.0")
+                @link(url: "https://specs.apollo.dev/join/v0.3", for: EXECUTION)
+            {
+                query: Query
+            }
+
+            directive @tag(name: String!) repeatable on FIELD_DEFINITION | OBJECT
+            directive @join__enumValue(graph: join__Graph!) repeatable on ENUM_VALUE
+            directive @join__field(graph: join__Graph, requires: join__FieldSet, provides: join__FieldSet, type: String, external: Boolean, override: String, usedOverridden: Boolean) repeatable on FIELD_DEFINITION | INPUT_FIELD_DEFINITION
+            directive @join__graph(name: String!, url: String!) on ENUM_VALUE
+            directive @join__implements(graph: join__Graph!, interface: String!) repeatable on OBJECT | INTERFACE
+            directive @join__type(graph: join__Graph!, key: join__FieldSet, extension: Boolean! = false, resolvable: Boolean! = true, isInterfaceObject: Boolean! = false) repeatable on OBJECT | INTERFACE | UNION | ENUM | INPUT_OBJECT | SCALAR
+            directive @join__unionMember(graph: join__Graph!, member: String!) repeatable on UNION
+            directive @link(url: String, as: String, for: link__Purpose, import: [link__Import]) repeatable on SCHEMA
+
+            scalar join__FieldSet
+            scalar link__Import
+            enum link__Purpose { SECURITY EXECUTION }
+            enum join__Graph {
+                USERS @join__graph(name: "users", url: "http://users:3000/graphql")
+            }
+
+            type Query @join__type(graph: USERS) {
+                me: User @join__field(graph: USERS)
+            }
+
+            type User @join__type(graph: USERS, key: "id") {
+                id: ID!
+                name: String
+                email: String @tag(name: "internal")
+            }
+        "#;
+
+        let state = AppState::new(config, Some(sdl));
+        assert!(state.contract_registry.is_some());
+        let registry = state.contract_registry.as_ref().unwrap();
+        assert!(registry.get("full").is_some());
+        assert!(registry.get("public").is_some());
     }
 }

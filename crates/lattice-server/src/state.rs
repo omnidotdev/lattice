@@ -41,6 +41,8 @@ pub struct AppState {
     pub cache_ttl: u64,
     /// Raw supergraph SDL, retained for MCP introspection.
     pub supergraph_sdl: Option<String>,
+    /// Optional contract registry for schema filtering.
+    pub contract_registry: Option<crate::contracts::ContractRegistry>,
 }
 
 impl AppState {
@@ -69,6 +71,21 @@ impl AppState {
         let (rate_limiter, rate_limit_defaults) = init_rate_limiter(&config);
         let (entity_cache, cache_ttl) = init_cache(&config);
 
+        let contract_registry = config.contracts.as_ref().and_then(|contracts_config| {
+            supergraph_sdl.and_then(
+                |sdl| match crate::contracts::ContractRegistry::build(contracts_config, sdl) {
+                    Ok(registry) => {
+                        tracing::info!(variants = registry.variant_count(), "contract registry built");
+                        Some(registry)
+                    }
+                    Err(e) => {
+                        tracing::error!(error = %e, "failed to build contract registry");
+                        None
+                    }
+                },
+            )
+        });
+
         Self {
             config,
             planner,
@@ -85,6 +102,7 @@ impl AppState {
             entity_cache,
             cache_ttl,
             supergraph_sdl: supergraph_sdl.map(String::from),
+            contract_registry,
         }
     }
 }
