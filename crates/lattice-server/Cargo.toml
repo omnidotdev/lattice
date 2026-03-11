@@ -9,6 +9,7 @@ repository.workspace = true
 
 [dependencies]
 lattice-auth = { workspace = true }
+lattice-cache = { workspace = true }
 lattice-config = { workspace = true }
 lattice-federation = { workspace = true }
 lattice-execution = { workspace = true }

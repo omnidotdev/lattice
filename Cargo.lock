@@ -1986,6 +1986,7 @@ dependencies = [
  "futures",
  "http-body-util",
  "lattice-auth",
+ "lattice-cache",
  "lattice-config",
  "lattice-execution",
  "lattice-federation",

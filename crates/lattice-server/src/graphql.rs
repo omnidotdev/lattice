@@ -1,9 +1,11 @@
+use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 
 use axum::Json;
 use axum::extract::State;
 use serde::{Deserialize, Serialize};
 
+use lattice_cache::EntityCache;
 use lattice_execution::PlanExecutor;
 use lattice_plugin::{HookResult, OnRequestInput, OnResponseInput};
 
@@ -18,7 +20,7 @@ pub struct GraphqlRequest {
     pub variables: Option<serde_json::Value>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct GraphqlResponse {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub data: Option<serde_json::Value>,
@@ -26,7 +28,7 @@ pub struct GraphqlResponse {
     pub errors: Option<Vec<GraphqlError>>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct GraphqlError {
     pub message: String,
 }
@@ -38,6 +40,17 @@ fn error_response(message: impl Into<String>) -> Json<GraphqlResponse> {
             message: message.into(),
         }]),
     })
+}
+
+/// Build a cache key from query, operation name, and variables.
+fn cache_key(query: &str, operation_name: Option<&str>, variables: Option<&serde_json::Value>) -> String {
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    query.hash(&mut hasher);
+    operation_name.hash(&mut hasher);
+    if let Some(vars) = variables {
+        vars.to_string().hash(&mut hasher);
+    }
+    format!("{:x}", hasher.finish())
 }
 
 /// Apply `on_request` plugin hooks, potentially modifying the request.
@@ -109,6 +122,26 @@ pub async fn handle(
         return rejection;
     }
 
+    // Check response cache.
+    let key = cache_key(
+        &request.query,
+        request.operation_name.as_deref(),
+        request.variables.as_ref(),
+    );
+
+    if let Some(cache) = &state.entity_cache {
+        match cache.get(&key).await {
+            Ok(Some(cached)) => {
+                if let Ok(response) = serde_json::from_str::<GraphqlResponse>(&cached) {
+                    tracing::debug!("cache hit");
+                    return Json(response);
+                }
+            }
+            Ok(None) => {}
+            Err(e) => tracing::warn!(error = %e, "cache lookup failed"),
+        }
+    }
+
     let Some(planner) = &state.planner else {
         return error_response("no supergraph loaded");
     };
@@ -147,5 +180,18 @@ pub async fn handle(
         return modified;
     }
 
-    Json(GraphqlResponse { data, errors })
+    let response = GraphqlResponse { data, errors };
+
+    // Cache successful responses.
+    if response.errors.is_none() {
+        if let Some(cache) = &state.entity_cache {
+            if let Ok(serialized) = serde_json::to_string(&response) {
+                if let Err(e) = cache.set(&key, &serialized, state.cache_ttl).await {
+                    tracing::warn!(error = %e, "failed to cache response");
+                }
+            }
+        }
+    }
+
+    Json(response)
 }
