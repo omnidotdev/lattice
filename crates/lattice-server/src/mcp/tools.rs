@@ -57,15 +57,16 @@ pub async fn call(
         .unwrap_or_else(|| serde_json::json!({}));
 
     let state = shared.load_full();
+    let (active_sdl, active_planner) = resolve_mcp_context(&state);
 
     match tool_name {
         "sdl" => {
-            let sdl = state.supergraph_sdl.as_deref().unwrap_or("No supergraph SDL loaded");
+            let sdl = active_sdl.unwrap_or("No supergraph SDL loaded");
             content_response(id, sdl)
         }
         "search" => {
             let query = arguments.get("query").and_then(|v| v.as_str()).unwrap_or("");
-            let sdl = state.supergraph_sdl.as_deref().unwrap_or("");
+            let sdl = active_sdl.unwrap_or("");
             let results = search_sdl(sdl, query);
             if results.is_empty() {
                 content_response(id, "No matches found")
@@ -73,12 +74,12 @@ pub async fn call(
                 content_response(id, &results.join("\n"))
             }
         }
-        "introspect" => execute_query(&state, id, INTROSPECTION_QUERY, None, None).await,
+        "introspect" => execute_query_with_planner(active_planner, &state, id, INTROSPECTION_QUERY, None, None).await,
         "execute" => {
             let query = arguments.get("query").and_then(|v| v.as_str()).unwrap_or("");
             let variables = arguments.get("variables");
             let op_name = arguments.get("operationName").and_then(|v| v.as_str());
-            execute_query(&state, id, query, variables, op_name).await
+            execute_query_with_planner(active_planner, &state, id, query, variables, op_name).await
         }
         _ => JsonRpcResponse::error(id, -32602, format!("unknown tool: {tool_name}")),
     }
@@ -92,6 +93,17 @@ fn content_response(id: Option<serde_json::Value>, text: &str) -> JsonRpcRespons
             "content": [{ "type": "text", "text": text }],
         }),
     )
+}
+
+/// Resolve the active SDL and planner for MCP, respecting contracts.
+fn resolve_mcp_context(state: &crate::AppState) -> (Option<&str>, Option<&lattice_federation::FederationPlanner>) {
+    if let Some(registry) = &state.contract_registry {
+        let key = registry.default_key();
+        if let Some(variant) = registry.get(key) {
+            return (Some(&variant.sdl), Some(&variant.planner));
+        }
+    }
+    (state.supergraph_sdl.as_deref(), state.planner.as_ref())
 }
 
 /// Search SDL for lines matching the query (case-insensitive).
@@ -110,14 +122,15 @@ fn search_sdl(sdl: &str, query: &str) -> Vec<String> {
 }
 
 /// Plan and execute a GraphQL query, returning the result as an MCP tool response.
-async fn execute_query(
+async fn execute_query_with_planner(
+    planner: Option<&lattice_federation::FederationPlanner>,
     state: &crate::AppState,
     id: Option<serde_json::Value>,
     query: &str,
     variables: Option<&serde_json::Value>,
     operation_name: Option<&str>,
 ) -> JsonRpcResponse {
-    let Some(planner) = &state.planner else {
+    let Some(planner) = planner else {
         return JsonRpcResponse::error(id, -32603, "no supergraph loaded");
     };
 

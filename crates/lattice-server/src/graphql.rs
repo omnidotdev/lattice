@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use lattice_cache::EntityCache;
 use lattice_execution::{PlanExecutor, SubgraphRequest, SubgraphResponse};
+use lattice_federation::FederationPlanner;
 use lattice_plugin::{
     HookResult, OnHttpResponseInput, OnOperationResponseInput, OnRequestInput, OnResponseInput, OnSubgraphRequestInput,
     OnSubgraphResponseInput,
@@ -57,9 +58,14 @@ fn cache_key(query: &str, operation_name: Option<&str>, variables: Option<&serde
 
 /// Apply `on_gateway_request` plugin hooks, potentially modifying the request.
 ///
-/// Returns `Some(response)` if a plugin rejected the request, `None` to continue.
-fn apply_on_request_hooks(state: &AppState, request: &mut GraphqlRequest) -> Option<Json<GraphqlResponse>> {
-    let pm = state.plugin_manager.as_ref()?;
+/// Returns a rejection response (if any) and an optional contract key from the hook.
+fn apply_on_request_hooks(
+    state: &AppState,
+    request: &mut GraphqlRequest,
+) -> (Option<Json<GraphqlResponse>>, Option<String>) {
+    let Some(pm) = state.plugin_manager.as_ref() else {
+        return (None, None);
+    };
 
     let input = OnRequestInput {
         query: request.query.clone(),
@@ -69,7 +75,7 @@ fn apply_on_request_hooks(state: &AppState, request: &mut GraphqlRequest) -> Opt
     };
 
     match pm.on_gateway_request(&input) {
-        HookResult::Reject { message } => Some(error_response(message)),
+        HookResult::Reject { message } => (Some(error_response(message)), None),
         HookResult::Modify { data } => {
             if let Some(q) = data.get("query").and_then(|v| v.as_str()) {
                 q.clone_into(&mut request.query);
@@ -77,10 +83,32 @@ fn apply_on_request_hooks(state: &AppState, request: &mut GraphqlRequest) -> Opt
             if let Some(v) = data.get("variables") {
                 request.variables = Some(v.clone());
             }
-            None
+            let contract = data.get("contract").and_then(|v| v.as_str()).map(String::from);
+            (None, contract)
         }
-        HookResult::Continue => None,
+        HookResult::Continue => (None, None),
     }
+}
+
+/// Resolve which planner to use based on contract selection.
+///
+/// Falls back to the default planner when no contract registry is configured.
+fn resolve_planner<'a>(
+    state: &'a AppState,
+    hook_contract: Option<&str>,
+    claim_contract: Option<&str>,
+    header_contract: Option<&str>,
+) -> Option<&'a FederationPlanner> {
+    if let Some(registry) = &state.contract_registry {
+        let contract_key = registry.resolve_key(hook_contract, claim_contract, header_contract);
+
+        if let Some(variant) = registry.get(contract_key) {
+            return Some(&variant.planner);
+        }
+    }
+
+    // Fall back to the default planner.
+    state.planner.as_ref()
 }
 
 /// Apply `on_gateway_response` plugin hooks, potentially modifying the response.
@@ -221,14 +249,23 @@ fn make_subgraph_response_hook(pm: &lattice_plugin::PluginManager) -> impl Fn(&s
 /// Handle incoming GraphQL POST requests.
 pub async fn handle(
     State(shared): State<SharedState>,
+    headers: axum::http::HeaderMap,
     Json(mut request): Json<GraphqlRequest>,
 ) -> Json<GraphqlResponse> {
     let state = shared.load_full();
     tracing::info!(query = %request.query, "received graphql request");
 
-    if let Some(rejection) = apply_on_request_hooks(&state, &mut request) {
+    let (rejection, hook_contract) = apply_on_request_hooks(&state, &mut request);
+    if let Some(rejection) = rejection {
         return rejection;
     }
+
+    // Extract contract key from header (if contract registry is configured).
+    let header_contract = state
+        .contract_registry
+        .as_ref()
+        .and_then(|r| headers.get(r.header_name()).and_then(|v| v.to_str().ok()))
+        .map(String::from);
 
     // Check response cache.
     let key = cache_key(
@@ -250,7 +287,12 @@ pub async fn handle(
         }
     }
 
-    let Some(planner) = &state.planner else {
+    let Some(planner) = resolve_planner(
+        &state,
+        hook_contract.as_deref(),
+        None, // Claims-based resolution can be added later.
+        header_contract.as_deref(),
+    ) else {
         return error_response("no supergraph loaded");
     };
 
