@@ -2,7 +2,6 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use arc_swap::ArcSwap;
-use lattice_auth::JwtValidator;
 use lattice_cache::ValkeyCache;
 use lattice_config::Config;
 use lattice_execution::SubgraphClient;
@@ -20,8 +19,16 @@ pub struct AppState {
     pub subgraph_client: SubgraphClient,
     /// Map of subgraph name to URL (from config).
     pub subgraph_urls: HashMap<String, String>,
-    /// Optional JWT validator, present when auth is configured.
-    pub jwt_validator: Option<JwtValidator>,
+    /// JWT validators, one per configured provider.
+    pub jwt_validators: Vec<lattice_auth::JwtValidator>,
+    /// Optional API key validator.
+    pub api_key_validator: Option<lattice_auth::ApiKeyValidator>,
+    /// Auth default behavior: "deny" or "anonymous".
+    pub auth_default: Option<String>,
+    /// Per-resource auth overrides.
+    pub auth_resources: Option<lattice_config::ResourceAuthConfig>,
+    /// JWKS polling task handles (kept alive for the server's lifetime).
+    pub poll_handles: Vec<tokio::task::JoinHandle<()>>,
     /// Optional rate limiter backend.
     pub rate_limiter: Option<Arc<dyn RateLimiter>>,
     /// Default rate limit parameters (`max_requests`, `window_seconds`).
@@ -58,12 +65,7 @@ impl AppState {
             })
             .unwrap_or_default();
 
-        let jwt_validator = config
-            .auth
-            .as_ref()
-            .and_then(|a| a.jwt.as_ref())
-            .map(JwtValidator::from_config);
-
+        let (jwt_validators, api_key_validator, auth_default, auth_resources, poll_handles) = init_auth(&config);
         let (rate_limiter, rate_limit_defaults) = init_rate_limiter(&config);
         let (entity_cache, cache_ttl) = init_cache(&config);
 
@@ -72,7 +74,11 @@ impl AppState {
             planner,
             subgraph_client: SubgraphClient::new(),
             subgraph_urls,
-            jwt_validator,
+            jwt_validators,
+            api_key_validator,
+            auth_default,
+            auth_resources,
+            poll_handles,
             rate_limiter,
             rate_limit_defaults,
             plugin_manager: None,
@@ -81,6 +87,73 @@ impl AppState {
             supergraph_sdl: supergraph_sdl.map(String::from),
         }
     }
+}
+
+type AuthInit = (
+    Vec<lattice_auth::JwtValidator>,
+    Option<lattice_auth::ApiKeyValidator>,
+    Option<String>,
+    Option<lattice_config::ResourceAuthConfig>,
+    Vec<tokio::task::JoinHandle<()>>,
+);
+
+/// Initialize auth validators from config.
+fn init_auth(config: &Config) -> AuthInit {
+    let Some(auth) = &config.auth else {
+        return (vec![], None, None, None, vec![]);
+    };
+
+    let mut validators = Vec::new();
+    let mut poll_handles = Vec::new();
+
+    // New multi-provider config.
+    if let Some(providers) = &auth.providers {
+        for p in providers {
+            let provider = lattice_auth::JwksProvider::new(&p.jwks_url);
+
+            if let Some(interval) = p.poll_interval {
+                poll_handles.push(provider.start_polling(interval));
+            }
+
+            let mut validator = lattice_auth::JwtValidator::new(provider, p.issuer.clone(), None);
+
+            if let Some(aud_value) = &p.audience {
+                let audiences = lattice_auth::parse_audience(aud_value);
+                validator = validator.with_audiences(audiences);
+            }
+
+            if let Some(prefix) = &p.header_prefix {
+                validator = validator.with_header_prefix(prefix);
+            }
+
+            validators.push(validator);
+        }
+    }
+
+    // Legacy single-provider (backward compat).
+    if validators.is_empty() {
+        if let Some(jwt) = &auth.jwt {
+            validators.push(lattice_auth::JwtValidator::from_config(jwt));
+        }
+    }
+
+    // API key validator.
+    let api_key_validator = auth.api_keys.as_ref().map(|ak| {
+        let keys: Vec<(&str, &str, std::collections::HashMap<String, serde_json::Value>)> = ak
+            .keys
+            .iter()
+            .map(|k| (k.name.as_str(), k.value.as_str(), k.claims.clone()))
+            .collect();
+        lattice_auth::ApiKeyValidator::new(&ak.header_name, keys)
+    });
+
+    (
+        validators,
+        api_key_validator,
+        auth.default.clone(),
+        auth.resources.clone(),
+        poll_handles,
+    )
 }
 
 /// Initialized rate limiter and its default parameters.

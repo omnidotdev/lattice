@@ -235,6 +235,99 @@ supergraph:
     }
 
     #[tokio::test]
+    async fn api_key_auth_passes() {
+        let config: lattice_config::Config = serde_yaml::from_str(
+            r#"
+server:
+  listen: "0.0.0.0:4000"
+supergraph:
+  path: ./supergraph.graphql
+auth:
+  default: deny
+  api_keys:
+    header_name: X-API-Key
+    keys:
+      - name: test-key
+        value: secret-123
+        claims:
+          role: admin
+"#,
+        )
+        .unwrap();
+
+        let state = AppState::new(config, None);
+        let state: SharedState = std::sync::Arc::new(ArcSwap::from(std::sync::Arc::new(state)));
+        let app = router(state);
+
+        let body = serde_json::json!({ "query": "{ __typename }" });
+
+        // Without API key -> 401.
+        let resp = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/graphql")
+                    .header("content-type", "application/json")
+                    .body(Body::from(serde_json::to_vec(&body).unwrap()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+
+        // With API key -> 200.
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/graphql")
+                    .header("content-type", "application/json")
+                    .header("X-API-Key", "secret-123")
+                    .body(Body::from(serde_json::to_vec(&body).unwrap()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn auth_default_anonymous_passes_without_credentials() {
+        let config: lattice_config::Config = serde_yaml::from_str(
+            r#"
+server:
+  listen: "0.0.0.0:4000"
+supergraph:
+  path: ./supergraph.graphql
+auth:
+  default: anonymous
+  providers:
+    - jwks_url: https://example.com/.well-known/jwks.json
+"#,
+        )
+        .unwrap();
+
+        let state = AppState::new(config, None);
+        let state: SharedState = std::sync::Arc::new(ArcSwap::from(std::sync::Arc::new(state)));
+        let app = router(state);
+
+        let body = serde_json::json!({ "query": "{ __typename }" });
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/graphql")
+                    .header("content-type", "application/json")
+                    .body(Body::from(serde_json::to_vec(&body).unwrap()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
     async fn rate_limit_returns_429() {
         let limiter = std::sync::Arc::new(InMemoryRateLimiter::new());
 
