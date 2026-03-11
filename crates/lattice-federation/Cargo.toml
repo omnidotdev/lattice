@@ -1,0 +1,19 @@
+[package]
+name = "lattice-federation"
+version = "0.1.0"
+description = "Federation query planning for Lattice gateway"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+hive-router-query-planner = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+cargo-husky = { workspace = true }
+
+[lints]
+workspace = true

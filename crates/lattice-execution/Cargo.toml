@@ -1,0 +1,23 @@
+[package]
+name = "lattice-execution"
+version = "0.1.0"
+description = "Query plan execution for Lattice gateway"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+lattice-federation = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+
+[dev-dependencies]
+cargo-husky = { workspace = true }
+
+[lints]
+workspace = true
