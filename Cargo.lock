@@ -2026,22 +2026,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "lattice-gateway"
-version = "0.1.0"
-dependencies = [
- "arc-swap",
- "axum",
- "cargo-husky",
- "clap",
- "lattice-config",
- "lattice-plugin",
- "lattice-server",
- "lattice-telemetry",
- "tokio",
- "tracing",
-]
-
-[[package]]
 name = "lattice-plugin"
 version = "0.1.0"
 dependencies = [

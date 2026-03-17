@@ -31,7 +31,7 @@ lattice serve --config lattice.yaml
 docker run -v ./lattice.yaml:/etc/lattice/lattice.yaml \
   -v ./supergraph.graphql:/etc/lattice/supergraph.graphql \
   -p 4000:4000 \
-  ghcr.io/omnidotdev/lattice-gateway
+  ghcr.io/omnidotdev/lattice
 ```
 
 ## Configuration

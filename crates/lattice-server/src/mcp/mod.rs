@@ -85,7 +85,7 @@ async fn handle_request(State(shared): State<SharedState>, Json(request): Json<J
                 "protocolVersion": "2025-03-26",
                 "capabilities": { "tools": {} },
                 "serverInfo": {
-                    "name": "lattice-gateway",
+                    "name": "lattice",
                     "version": env!("CARGO_PKG_VERSION"),
                 },
             }),

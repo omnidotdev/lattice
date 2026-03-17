@@ -312,7 +312,7 @@ rate_limit:
     requests: 1000
     window: 60s
 telemetry:
-  service_name: lattice-gateway
+  service_name: lattice
   otlp_endpoint: http://localhost:4317
   log_level: debug
   log_format: pretty
@@ -335,7 +335,7 @@ telemetry:
         assert_eq!(rl.default.unwrap().requests, 1000);
 
         let tel = config.telemetry.unwrap();
-        assert_eq!(tel.service_name.as_deref(), Some("lattice-gateway"));
+        assert_eq!(tel.service_name.as_deref(), Some("lattice"));
         assert_eq!(tel.log_format, "pretty");
     }
 

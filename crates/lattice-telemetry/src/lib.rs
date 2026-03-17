@@ -79,7 +79,7 @@ where
         )
         .build();
 
-    let tracer = provider.tracer("lattice-gateway");
+    let tracer = provider.tracer("lattice");
 
     // Store the provider for graceful shutdown and register globally.
     if let Ok(mut guard) = TRACER_PROVIDER.lock() {

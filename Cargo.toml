@@ -10,7 +10,6 @@ members = [
     "crates/lattice-cache",
     "crates/lattice-rate-limit",
     "crates/lattice-plugin",
-    "crates/lattice-gateway",
     "crates/lattice-cli",
 ]
 
@@ -18,7 +17,7 @@ members = [
 edition = "2024"
 rust-version = "1.87"
 license = "Apache-2.0"
-repository = "https://github.com/omnidotdev/lattice-gateway"
+repository = "https://github.com/omnidotdev/lattice"
 homepage = "https://omni.dev"
 
 [workspace.dependencies]
