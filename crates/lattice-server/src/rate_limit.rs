@@ -38,6 +38,7 @@ pub async fn rate_limit(State(shared): State<SharedState>, request: Request<Body
     match limiter.check(&key, max_requests, window_seconds).await {
         Ok(result) if result.allowed => next.run(request).await,
         Ok(result) => {
+            lattice_telemetry::prometheus::record_rate_limit_rejected();
             let body = serde_json::json!({
                 "errors": [{
                     "message": format!(

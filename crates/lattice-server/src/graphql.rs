@@ -247,13 +247,24 @@ fn make_subgraph_response_hook(pm: &lattice_plugin::PluginManager) -> impl Fn(&s
 }
 
 /// Handle incoming GraphQL POST requests.
+#[allow(clippy::too_many_lines)]
 pub async fn handle(
     State(shared): State<SharedState>,
     headers: axum::http::HeaderMap,
     Json(mut request): Json<GraphqlRequest>,
 ) -> Json<GraphqlResponse> {
+    let start = std::time::Instant::now();
     let state = shared.load_full();
     tracing::info!(query = %request.query, "received graphql request");
+
+    // Validate query limits before planning/execution.
+    if let Some(limits) = &state.config.limits {
+        if let Some(err) = crate::limits::validate_query(&request.query, limits) {
+            tracing::warn!(error = %err, "query limit exceeded");
+            lattice_telemetry::prometheus::record_http_request("POST", 400, "query", start.elapsed().as_secs_f64());
+            return error_response(err);
+        }
+    }
 
     let (rejection, hook_contract) = apply_on_request_hooks(&state, &mut request);
     if let Some(rejection) = rejection {
@@ -279,10 +290,19 @@ pub async fn handle(
             Ok(Some(cached)) => {
                 if let Ok(response) = serde_json::from_str::<GraphqlResponse>(&cached) {
                     tracing::debug!("cache hit");
+                    lattice_telemetry::prometheus::record_cache_hit();
+                    lattice_telemetry::prometheus::record_http_request(
+                        "POST",
+                        200,
+                        "query",
+                        start.elapsed().as_secs_f64(),
+                    );
                     return Json(response);
                 }
             }
-            Ok(None) => {}
+            Ok(None) => {
+                lattice_telemetry::prometheus::record_cache_miss();
+            }
             Err(e) => tracing::warn!(error = %e, "cache lookup failed"),
         }
     }
@@ -369,6 +389,13 @@ pub async fn handle(
 
     // Apply on_http_response hook (final hook before sending).
     apply_on_http_response_hooks(&state, &mut response);
+
+    let op_type = if request.query.trim_start().starts_with("mutation") {
+        "mutation"
+    } else {
+        "query"
+    };
+    lattice_telemetry::prometheus::record_http_request("POST", 200, op_type, start.elapsed().as_secs_f64());
 
     Json(response)
 }

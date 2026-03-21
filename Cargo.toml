@@ -81,6 +81,11 @@ tokio-tungstenite = { version = "0.26", features = ["connect", "rustls-tls-webpk
 # HTTP utilities
 http-body-util = "0.1"
 tower = { version = "0.5", features = ["util"] }
+tower-http = { version = "0.6", features = ["cors"] }
+
+# Metrics
+metrics = "0.24"
+metrics-exporter-prometheus = "0.16"
 
 # Testing
 cargo-husky = { version = "1", default-features = false, features = ["precommit-hook", "run-cargo-fmt", "run-cargo-clippy", "run-cargo-test"] }

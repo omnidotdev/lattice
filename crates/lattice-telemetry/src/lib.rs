@@ -1,3 +1,5 @@
+pub mod prometheus;
+
 use std::sync::Mutex;
 
 use lattice_config::TelemetryConfig;

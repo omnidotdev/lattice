@@ -1,5 +1,8 @@
 pub mod contracts;
+mod cors;
+mod csrf;
 mod graphql;
+mod limits;
 mod mcp;
 pub mod middleware;
 mod playground;
@@ -23,18 +26,67 @@ async fn ws_upgrade(ws: WebSocketUpgrade, State(shared): State<SharedState>) -> 
         .on_upgrade(move |socket| subscriptions::handle_socket(socket, state))
 }
 
+/// Mount MCP routes if enabled in config.
+fn mount_mcp(app: Router<SharedState>, state: &SharedState) -> Router<SharedState> {
+    let Some(mcp_config) = &state.load().config.mcp else {
+        return app;
+    };
+
+    if !mcp_config.enabled {
+        return app;
+    }
+
+    let path = mcp_config.path.clone();
+    tracing::info!(path = %path, "MCP server enabled");
+    app.merge(Router::new().nest(&path, mcp::router()))
+}
+
+/// Mount the Prometheus `/metrics` endpoint if enabled in config.
+fn mount_metrics(app: Router<SharedState>, state: &SharedState) -> Router<SharedState> {
+    let enabled = state
+        .load()
+        .config
+        .telemetry
+        .as_ref()
+        .and_then(|t| t.prometheus.as_ref())
+        .is_some_and(|p| p.enabled);
+
+    if !enabled {
+        return app;
+    }
+
+    let prom = state
+        .load()
+        .config
+        .telemetry
+        .as_ref()
+        .and_then(|t| t.prometheus.clone())
+        .expect("checked above");
+
+    lattice_telemetry::prometheus::install();
+    tracing::info!(path = %prom.path, "prometheus metrics enabled");
+    app.route(&prom.path, get(lattice_telemetry::prometheus::metrics_handler))
+}
+
 /// Build the axum router with all routes.
 pub fn router(state: SharedState) -> Router {
     let mut app = Router::new().route("/graphql", post(graphql::handle).get(ws_upgrade));
 
     // Serve GraphiQL when playground is enabled (default: true).
-    let playground_enabled = state.load().config.server.playground.unwrap_or(true);
-
-    if playground_enabled {
+    if state.load().config.server.playground.unwrap_or(true) {
         app = app.route("/", get(playground::graphiql));
     }
 
-    // Apply auth + rate-limit middleware to the main routes.
+    // Apply CSRF protection (innermost — runs first on requests).
+    app = app.layer(axum::middleware::from_fn_with_state(state.clone(), csrf::csrf));
+
+    // Apply body size limits.
+    app = app.layer(axum::middleware::from_fn_with_state(
+        state.clone(),
+        limits::body_size_limit,
+    ));
+
+    // Apply auth + rate-limit middleware.
     app = app
         .layer(axum::middleware::from_fn_with_state(state.clone(), middleware::auth))
         .layer(axum::middleware::from_fn_with_state(
@@ -42,14 +94,14 @@ pub fn router(state: SharedState) -> Router {
             rate_limit::rate_limit,
         ));
 
-    // Mount MCP routes outside the auth/rate-limit middleware stack so
-    // AI tool clients can reach the MCP server without a JWT.
-    if let Some(mcp_config) = &state.load().config.mcp {
-        if mcp_config.enabled {
-            let path = mcp_config.path.clone();
-            tracing::info!(path = %path, "MCP server enabled");
-            app = app.merge(Router::new().nest(&path, mcp::router()));
-        }
+    // Mount optional routes outside the auth/rate-limit stack.
+    app = mount_mcp(app, &state);
+    app = mount_metrics(app, &state);
+
+    // Apply CORS layer (outermost — wraps all routes including MCP and metrics).
+    if let Some(cors_config) = &state.load().config.cors {
+        tracing::info!("CORS protection enabled");
+        app = app.layer(cors::build_cors_layer(cors_config));
     }
 
     app.with_state(state)

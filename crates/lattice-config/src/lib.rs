@@ -3,8 +3,9 @@ mod types;
 mod watcher;
 
 pub use types::{
-    ApiKeyEntry, ApiKeysConfig, Config, ContractVariantConfig, ContractsConfig, JwtConfig, JwtProviderConfig,
-    McpConfig, PluginConfig, ResourceAuthConfig, ResourceAuthOverride, TelemetryConfig,
+    ApiKeyEntry, ApiKeysConfig, Config, ContractVariantConfig, ContractsConfig, CorsConfig, CsrfConfig, JwtConfig,
+    JwtProviderConfig, LimitsConfig, McpConfig, PluginConfig, PrometheusConfig, ResourceAuthConfig,
+    ResourceAuthOverride, TelemetryConfig,
 };
 pub use watcher::ConfigWatcher;
 

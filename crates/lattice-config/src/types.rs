@@ -22,6 +22,12 @@ pub struct Config {
     pub mcp: Option<McpConfig>,
     #[serde(default)]
     pub contracts: Option<ContractsConfig>,
+    #[serde(default)]
+    pub cors: Option<CorsConfig>,
+    #[serde(default)]
+    pub csrf: Option<CsrfConfig>,
+    #[serde(default)]
+    pub limits: Option<LimitsConfig>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -186,6 +192,20 @@ pub struct TelemetryConfig {
     pub log_level: String,
     #[serde(default = "default_log_format")]
     pub log_format: String,
+    #[serde(default)]
+    pub prometheus: Option<PrometheusConfig>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct PrometheusConfig {
+    #[serde(default)]
+    pub enabled: bool,
+    #[serde(default = "default_metrics_path")]
+    pub path: String,
+}
+
+fn default_metrics_path() -> String {
+    "/metrics".into()
 }
 
 fn default_log_level() -> String {
@@ -231,6 +251,66 @@ pub struct ContractVariantConfig {
     pub include: Vec<String>,
     #[serde(default)]
     pub exclude: Vec<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct CorsConfig {
+    #[serde(default)]
+    pub origins: Vec<String>,
+    #[serde(default = "default_cors_methods")]
+    pub methods: Vec<String>,
+    #[serde(default)]
+    pub allow_headers: Vec<String>,
+    #[serde(default)]
+    pub allow_credentials: bool,
+    #[serde(default = "default_cors_max_age")]
+    pub max_age: u64,
+}
+
+fn default_cors_methods() -> Vec<String> {
+    vec!["GET".into(), "POST".into(), "OPTIONS".into()]
+}
+
+const fn default_cors_max_age() -> u64 {
+    86400
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct CsrfConfig {
+    #[serde(default = "default_csrf_headers")]
+    pub required_headers: Vec<String>,
+}
+
+fn default_csrf_headers() -> Vec<String> {
+    vec!["x-graphql-csrf".into()]
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct LimitsConfig {
+    #[serde(default = "default_max_depth")]
+    pub max_depth: usize,
+    #[serde(default = "default_max_complexity")]
+    pub max_complexity: usize,
+    #[serde(default = "default_max_body_size")]
+    pub max_body_size: String,
+    #[serde(default = "default_max_aliases")]
+    pub max_aliases: usize,
+}
+
+const fn default_max_depth() -> usize {
+    15
+}
+
+const fn default_max_complexity() -> usize {
+    1000
+}
+
+fn default_max_body_size() -> String {
+    "2mb".into()
+}
+
+const fn default_max_aliases() -> usize {
+    30
 }
 
 #[derive(Debug, Deserialize)]
