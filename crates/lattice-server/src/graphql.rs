@@ -325,7 +325,11 @@ pub async fn handle(
     };
 
     // Build executor with optional subgraph hooks.
-    let executor = PlanExecutor::new(&state.subgraph_client, &state.subgraph_urls);
+    let executor = PlanExecutor::new(
+        &state.subgraph_client,
+        &state.subgraph_urls,
+        &state.in_process_subgraphs,
+    );
 
     let req_hook;
     let resp_hook;

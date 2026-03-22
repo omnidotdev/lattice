@@ -141,7 +141,11 @@ async fn execute_query_with_planner(
         }
     };
 
-    let executor = PlanExecutor::new(&state.subgraph_client, &state.subgraph_urls);
+    let executor = PlanExecutor::new(
+        &state.subgraph_client,
+        &state.subgraph_urls,
+        &state.in_process_subgraphs,
+    );
 
     match executor.execute(&plan, variables).await {
         Ok(result) => {

@@ -1,9 +1,10 @@
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use lattice_federation::{ConditionNode, FetchNode, FlattenNode, PlanNode, QueryPlan};
 use serde_json::Value;
 
-use crate::dispatch::{ExecutionError, SubgraphClient, SubgraphRequest, SubgraphResponse};
+use crate::dispatch::{ExecutionError, SubgraphClient, SubgraphExecutor, SubgraphRequest, SubgraphResponse};
 
 /// Result of executing a query plan against federated subgraphs.
 #[derive(Debug)]
@@ -33,16 +34,23 @@ type SubgraphResponseHook<'a> = dyn Fn(&str, &mut SubgraphResponse) + Send + Syn
 pub struct PlanExecutor<'a> {
     client: &'a SubgraphClient,
     subgraph_urls: &'a HashMap<String, String>,
+    /// In-process subgraph executors keyed by service name.
+    in_process: &'a HashMap<String, Arc<dyn SubgraphExecutor>>,
     on_subgraph_request: Option<&'a SubgraphRequestHook<'a>>,
     on_subgraph_response: Option<&'a SubgraphResponseHook<'a>>,
 }
 
 impl<'a> PlanExecutor<'a> {
     #[must_use]
-    pub fn new(client: &'a SubgraphClient, subgraph_urls: &'a HashMap<String, String>) -> Self {
+    pub fn new(
+        client: &'a SubgraphClient,
+        subgraph_urls: &'a HashMap<String, String>,
+        in_process: &'a HashMap<String, Arc<dyn SubgraphExecutor>>,
+    ) -> Self {
         Self {
             client,
             subgraph_urls,
+            in_process,
             on_subgraph_request: None,
             on_subgraph_response: None,
         }
@@ -112,12 +120,53 @@ impl<'a> PlanExecutor<'a> {
         parent_data: Option<&Value>,
         client_variables: Option<&Value>,
     ) -> Result<ExecutionResult, ExecutionError> {
+        let fetch_vars = build_fetch_variables(fetch, parent_data, client_variables);
+
+        // Check for in-process executor first
+        if let Some(executor) = self.in_process.get(&fetch.service_name) {
+            tracing::debug!(service = %fetch.service_name, "executing in-process subgraph");
+
+            let mut request = SubgraphRequest {
+                url: String::new(),
+                query: fetch.operation.document_str.clone(),
+                operation_name: fetch.operation_name.clone(),
+                variables: fetch_vars,
+                headers: vec![],
+            };
+
+            // Still apply request/response hooks
+            if let Some(hook) = &self.on_subgraph_request {
+                if let Err(message) = hook(&fetch.service_name, &mut request) {
+                    return Ok(ExecutionResult {
+                        data: None,
+                        errors: vec![ExecutionResultError { message }],
+                    });
+                }
+            }
+
+            let mut response = executor.execute_graphql(request).await?;
+
+            if let Some(hook) = &self.on_subgraph_response {
+                hook(&fetch.service_name, &mut response);
+            }
+
+            let errors = response
+                .errors
+                .unwrap_or_default()
+                .into_iter()
+                .map(|e| ExecutionResultError { message: e.message })
+                .collect();
+
+            return Ok(ExecutionResult {
+                data: response.data,
+                errors,
+            });
+        }
+
         let url = self
             .subgraph_urls
             .get(&fetch.service_name)
             .ok_or_else(|| ExecutionError::SubgraphNotFound(fetch.service_name.clone()))?;
-
-        let fetch_vars = build_fetch_variables(fetch, parent_data, client_variables);
 
         let mut request = SubgraphRequest {
             url: url.clone(),
@@ -458,7 +507,8 @@ mod tests {
             node: Some(PlanNode::Fetch(test_fetch_node("users", "{ me { id name } }"))),
         };
 
-        let executor = PlanExecutor::new(&client, &urls);
+        let in_process = HashMap::new();
+        let executor = PlanExecutor::new(&client, &urls, &in_process);
         let result = executor.execute(&plan, None).await.unwrap();
 
         assert_eq!(result.data, Some(json!({"me": {"id": "1", "name": "Alice"}})));
@@ -501,7 +551,8 @@ mod tests {
             })),
         };
 
-        let executor = PlanExecutor::new(&client, &urls);
+        let in_process = HashMap::new();
+        let executor = PlanExecutor::new(&client, &urls, &in_process);
         let result = executor.execute(&plan, None).await.unwrap();
 
         assert_eq!(result.data, Some(json!({"me": {"id": "1", "name": "Bob"}})));
@@ -518,7 +569,8 @@ mod tests {
             node: None,
         };
 
-        let executor = PlanExecutor::new(&client, &urls);
+        let in_process = HashMap::new();
+        let executor = PlanExecutor::new(&client, &urls, &in_process);
         let result = executor.execute(&plan, None).await.unwrap();
 
         assert!(result.data.is_none());
@@ -575,7 +627,8 @@ mod tests {
             node: Some(PlanNode::Fetch(test_fetch_node("users", "{ me { id } }"))),
         };
 
-        let executor = PlanExecutor::new(&client, &urls);
+        let in_process = HashMap::new();
+        let executor = PlanExecutor::new(&client, &urls, &in_process);
         let result = executor.execute(&plan, None).await.unwrap();
 
         assert_eq!(result.errors.len(), 1);
@@ -610,7 +663,8 @@ mod tests {
         };
 
         let vars = json!({"id": "42", "unused": true});
-        let executor = PlanExecutor::new(&client, &urls);
+        let in_process = HashMap::new();
+        let executor = PlanExecutor::new(&client, &urls, &in_process);
         let result = executor.execute(&plan, Some(&vars)).await.unwrap();
 
         assert!(result.data.is_some());
@@ -653,7 +707,8 @@ mod tests {
             })),
         };
 
-        let executor = PlanExecutor::new(&client, &urls);
+        let in_process = HashMap::new();
+        let executor = PlanExecutor::new(&client, &urls, &in_process);
         let result = executor.execute(&plan, None).await.unwrap();
 
         let data = result.data.unwrap();
@@ -689,7 +744,8 @@ mod tests {
         };
 
         let vars = json!({"includeUser": true});
-        let executor = PlanExecutor::new(&client, &urls);
+        let in_process = HashMap::new();
+        let executor = PlanExecutor::new(&client, &urls, &in_process);
         let result = executor.execute(&plan, Some(&vars)).await.unwrap();
 
         assert_eq!(result.data, Some(json!({"me": {"id": "1"}})));
@@ -722,7 +778,8 @@ mod tests {
 
         // Variable is false, so else-clause should execute.
         let vars = json!({"includeUser": false});
-        let executor = PlanExecutor::new(&client, &urls);
+        let in_process = HashMap::new();
+        let executor = PlanExecutor::new(&client, &urls, &in_process);
         let result = executor.execute(&plan, Some(&vars)).await.unwrap();
 
         assert_eq!(result.data, Some(json!({"fallback": true})));
@@ -754,7 +811,8 @@ mod tests {
         };
 
         // No variables provided, so condition defaults to false.
-        let executor = PlanExecutor::new(&client, &urls);
+        let in_process = HashMap::new();
+        let executor = PlanExecutor::new(&client, &urls, &in_process);
         let result = executor.execute(&plan, None).await.unwrap();
 
         assert_eq!(result.data, Some(json!({"fallback": true})));
@@ -808,7 +866,8 @@ mod tests {
             })),
         };
 
-        let executor = PlanExecutor::new(&client, &urls);
+        let in_process = HashMap::new();
+        let executor = PlanExecutor::new(&client, &urls, &in_process);
         let result = executor.execute(&plan, None).await.unwrap();
 
         let data = result.data.unwrap();
