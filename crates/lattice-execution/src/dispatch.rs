@@ -1,3 +1,4 @@
+use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -39,6 +40,14 @@ struct SubgraphRequestBody {
     variables: Option<serde_json::Value>,
 }
 
+/// Trait for in-process subgraph execution.
+/// Implement this to execute GraphQL queries without an HTTP hop.
+#[async_trait]
+pub trait SubgraphExecutor: Send + Sync {
+    /// Execute a GraphQL query and return the response.
+    async fn execute_graphql(&self, request: SubgraphRequest) -> Result<SubgraphResponse, ExecutionError>;
+}
+
 /// HTTP client for dispatching GraphQL requests to subgraphs.
 pub struct SubgraphClient {
     http: reqwest::Client,
@@ -74,6 +83,13 @@ impl SubgraphClient {
         let response = builder.send().await?.json::<SubgraphResponse>().await?;
 
         Ok(response)
+    }
+}
+
+#[async_trait]
+impl SubgraphExecutor for SubgraphClient {
+    async fn execute_graphql(&self, request: SubgraphRequest) -> Result<SubgraphResponse, ExecutionError> {
+        self.execute(request).await
     }
 }
 
