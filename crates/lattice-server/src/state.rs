@@ -43,6 +43,8 @@ pub struct AppState {
     pub supergraph_sdl: Option<String>,
     /// Optional contract registry for schema filtering.
     pub contract_registry: Option<crate::contracts::ContractRegistry>,
+    /// In-process subgraph executors (e.g. taproot)
+    pub in_process_subgraphs: HashMap<String, Arc<dyn lattice_execution::SubgraphExecutor>>,
 }
 
 impl AppState {
@@ -103,7 +105,13 @@ impl AppState {
             cache_ttl,
             supergraph_sdl: supergraph_sdl.map(String::from),
             contract_registry,
+            in_process_subgraphs: HashMap::new(),
         }
+    }
+
+    /// Register an in-process subgraph executor.
+    pub fn register_executor(&mut self, name: String, executor: Arc<dyn lattice_execution::SubgraphExecutor>) {
+        self.in_process_subgraphs.insert(name, executor);
     }
 }
 
