@@ -1,6 +1,10 @@
+mod dedup;
+mod defer;
 mod dispatch;
 mod executor;
 
+pub use dedup::{DedupAction, DedupLayer, DedupTicket};
+pub use defer::{DeferredPatch, encode_multipart_patches, query_has_defer};
 pub use dispatch::{
     ExecutionError, SubgraphClient, SubgraphError, SubgraphExecutor, SubgraphRequest, SubgraphResponse,
 };

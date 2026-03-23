@@ -5,8 +5,8 @@ use extism::{Manifest, Plugin, Wasm};
 
 use crate::error::PluginError;
 use crate::hooks::{
-    HookResult, OnHttpResponseInput, OnOperationResponseInput, OnRequestInput, OnResponseInput, OnSubgraphRequestInput,
-    OnSubgraphResponseInput,
+    HookResult, OnGraphqlParseInput, OnGraphqlValidationInput, OnHttpResponseInput, OnOperationResponseInput,
+    OnQueryPlanInput, OnRequestInput, OnResponseInput, OnSubgraphRequestInput, OnSubgraphResponseInput,
 };
 
 /// A loaded WASI plugin instance.
@@ -146,6 +146,36 @@ impl PluginInstance {
     pub fn on_http_response(&self, input: &OnHttpResponseInput) -> Result<HookResult, PluginError> {
         let bytes = serde_json::to_vec(input).map_err(|e| PluginError::Hook(format!("serialize: {e}")))?;
         self.call_hook("on_http_response", &bytes)
+    }
+
+    /// Call the `on_graphql_parse` hook.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`PluginError::Hook`] if the plugin call fails.
+    pub fn on_graphql_parse(&self, input: &OnGraphqlParseInput) -> Result<HookResult, PluginError> {
+        let bytes = serde_json::to_vec(input).map_err(|e| PluginError::Hook(format!("serialize: {e}")))?;
+        self.call_hook("on_graphql_parse", &bytes)
+    }
+
+    /// Call the `on_graphql_validation` hook.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`PluginError::Hook`] if the plugin call fails.
+    pub fn on_graphql_validation(&self, input: &OnGraphqlValidationInput) -> Result<HookResult, PluginError> {
+        let bytes = serde_json::to_vec(input).map_err(|e| PluginError::Hook(format!("serialize: {e}")))?;
+        self.call_hook("on_graphql_validation", &bytes)
+    }
+
+    /// Call the `on_query_plan` hook.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`PluginError::Hook`] if the plugin call fails.
+    pub fn on_query_plan(&self, input: &OnQueryPlanInput) -> Result<HookResult, PluginError> {
+        let bytes = serde_json::to_vec(input).map_err(|e| PluginError::Hook(format!("serialize: {e}")))?;
+        self.call_hook("on_query_plan", &bytes)
     }
 }
 

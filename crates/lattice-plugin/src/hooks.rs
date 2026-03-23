@@ -85,6 +85,49 @@ pub struct OnResponseInput {
     pub errors: Vec<serde_json::Value>,
 }
 
+/// Input sent to the `on_graphql_parse` plugin hook.
+///
+/// Fired after parsing the GraphQL AST, before validation.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OnGraphqlParseInput {
+    /// The GraphQL query string.
+    pub query: String,
+    /// Optional operation name.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub operation_name: Option<String>,
+}
+
+/// Input sent to the `on_graphql_validation` plugin hook.
+///
+/// Fired after validation, before query planning.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OnGraphqlValidationInput {
+    /// The GraphQL query string.
+    pub query: String,
+    /// Optional operation name.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub operation_name: Option<String>,
+    /// Whether the query passed validation.
+    pub is_valid: bool,
+    /// Validation error messages (empty if valid).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub validation_errors: Vec<String>,
+}
+
+/// Input sent to the `on_query_plan` plugin hook.
+///
+/// Fired after query planning, before execution.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OnQueryPlanInput {
+    /// The GraphQL query string.
+    pub query: String,
+    /// Optional operation name.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub operation_name: Option<String>,
+    /// Serialized query plan.
+    pub plan_json: serde_json::Value,
+}
+
 /// Result returned by plugin hooks.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "action", rename_all = "snake_case")]
@@ -154,6 +197,39 @@ mod tests {
         assert!(json.contains("me"));
         // variables is None so should be skipped
         assert!(!json.contains("variables"));
+    }
+
+    #[test]
+    fn on_graphql_parse_input_serializes() {
+        let input = OnGraphqlParseInput {
+            query: "{ me { id } }".into(),
+            operation_name: None,
+        };
+        let json = serde_json::to_string(&input).unwrap();
+        assert!(json.contains("me"));
+    }
+
+    #[test]
+    fn on_graphql_validation_input_serializes() {
+        let input = OnGraphqlValidationInput {
+            query: "{ me { id } }".into(),
+            operation_name: None,
+            is_valid: true,
+            validation_errors: vec![],
+        };
+        let json = serde_json::to_string(&input).unwrap();
+        assert!(json.contains("is_valid"));
+    }
+
+    #[test]
+    fn on_query_plan_input_serializes() {
+        let input = OnQueryPlanInput {
+            query: "{ me { id } }".into(),
+            operation_name: None,
+            plan_json: serde_json::json!({"node": null}),
+        };
+        let json = serde_json::to_string(&input).unwrap();
+        assert!(json.contains("plan_json"));
     }
 
     #[test]

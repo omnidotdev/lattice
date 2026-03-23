@@ -2,6 +2,7 @@ use std::hash::{Hash, Hasher};
 
 use axum::Json;
 use axum::extract::State;
+use axum::response::IntoResponse;
 use serde::{Deserialize, Serialize};
 
 use lattice_cache::EntityCache;
@@ -36,13 +37,14 @@ pub struct GraphqlError {
     pub message: String,
 }
 
-fn error_response(message: impl Into<String>) -> Json<GraphqlResponse> {
+fn error_response(message: impl Into<String>) -> axum::response::Response {
     Json(GraphqlResponse {
         data: None,
         errors: Some(vec![GraphqlError {
             message: message.into(),
         }]),
     })
+    .into_response()
 }
 
 /// Build a cache key from query, operation name, and variables.
@@ -62,7 +64,7 @@ fn cache_key(query: &str, operation_name: Option<&str>, variables: Option<&serde
 fn apply_on_request_hooks(
     state: &AppState,
     request: &mut GraphqlRequest,
-) -> (Option<Json<GraphqlResponse>>, Option<String>) {
+) -> (Option<axum::response::Response>, Option<String>) {
     let Some(pm) = state.plugin_manager.as_ref() else {
         return (None, None);
     };
@@ -117,7 +119,7 @@ fn apply_on_response_hooks(
     query: &str,
     data: Option<&serde_json::Value>,
     errors: Option<&Vec<GraphqlError>>,
-) -> Option<Json<GraphqlResponse>> {
+) -> Option<axum::response::Response> {
     let pm = state.plugin_manager.as_ref()?;
 
     let input = OnResponseInput {
@@ -133,10 +135,13 @@ fn apply_on_response_hooks(
     };
 
     match pm.on_gateway_response(&input) {
-        HookResult::Modify { data: modified } => Some(Json(GraphqlResponse {
-            data: modified.get("data").cloned(),
-            errors: errors.cloned(),
-        })),
+        HookResult::Modify { data: modified } => Some(
+            Json(GraphqlResponse {
+                data: modified.get("data").cloned(),
+                errors: errors.cloned(),
+            })
+            .into_response(),
+        ),
         HookResult::Continue | HookResult::Reject { .. } => None,
     }
 }
@@ -246,13 +251,40 @@ fn make_subgraph_response_hook(pm: &lattice_plugin::PluginManager) -> impl Fn(&s
     }
 }
 
+/// Walk response data checking field access against the auth tree.
+///
+/// Returns a list of violation descriptions for Query-level fields.
+fn check_auth_violations(
+    tree: &lattice_auth::AuthTree,
+    data: &serde_json::Value,
+    is_authenticated: bool,
+    user_scopes: &[String],
+) -> Vec<String> {
+    let Some(obj) = data.as_object() else {
+        return vec![];
+    };
+
+    let mut violations = Vec::new();
+
+    for field_name in obj.keys() {
+        if let Some(req) = tree.requirement("Query", field_name) {
+            if !lattice_auth::AuthTree::check_access(req, is_authenticated, user_scopes) {
+                violations.push(format!("Query.{field_name}"));
+            }
+        }
+    }
+
+    violations
+}
+
 /// Handle incoming GraphQL POST requests.
 #[allow(clippy::too_many_lines)]
 pub async fn handle(
     State(shared): State<SharedState>,
     headers: axum::http::HeaderMap,
+    claims: Option<axum::Extension<lattice_auth::Claims>>,
     Json(mut request): Json<GraphqlRequest>,
-) -> Json<GraphqlResponse> {
+) -> axum::response::Response {
     let start = std::time::Instant::now();
     let state = shared.load_full();
     tracing::info!(query = %request.query, "received graphql request");
@@ -269,6 +301,25 @@ pub async fn handle(
     let (rejection, hook_contract) = apply_on_request_hooks(&state, &mut request);
     if let Some(rejection) = rejection {
         return rejection;
+    }
+
+    // on_graphql_parse hook (after gateway request, before planning).
+    if let Some(pm) = state.plugin_manager.as_ref() {
+        let parse_input = lattice_plugin::OnGraphqlParseInput {
+            query: request.query.clone(),
+            operation_name: request.operation_name.clone(),
+        };
+        match pm.on_graphql_parse(&parse_input) {
+            lattice_plugin::HookResult::Reject { message } => {
+                return error_response(message);
+            }
+            lattice_plugin::HookResult::Modify { data } => {
+                if let Some(q) = data.get("query").and_then(|v| v.as_str()) {
+                    q.clone_into(&mut request.query);
+                }
+            }
+            lattice_plugin::HookResult::Continue => {}
+        }
     }
 
     // Extract contract key from header (if contract registry is configured).
@@ -297,7 +348,7 @@ pub async fn handle(
                         "query",
                         start.elapsed().as_secs_f64(),
                     );
-                    return Json(response);
+                    return Json(response).into_response();
                 }
             }
             Ok(None) => {
@@ -324,6 +375,28 @@ pub async fn handle(
         }
     };
 
+    // on_graphql_validation and on_query_plan hooks (after planning, before execution).
+    if let Some(pm) = state.plugin_manager.as_ref() {
+        let validation_input = lattice_plugin::OnGraphqlValidationInput {
+            query: request.query.clone(),
+            operation_name: request.operation_name.clone(),
+            is_valid: true,
+            validation_errors: vec![],
+        };
+        if let lattice_plugin::HookResult::Reject { message } = pm.on_graphql_validation(&validation_input) {
+            return error_response(message);
+        }
+
+        let plan_input = lattice_plugin::OnQueryPlanInput {
+            query: request.query.clone(),
+            operation_name: request.operation_name.clone(),
+            plan_json: serde_json::to_value(&plan).unwrap_or_default(),
+        };
+        if let lattice_plugin::HookResult::Reject { message } = pm.on_query_plan(&plan_input) {
+            return error_response(message);
+        }
+    }
+
     // Build executor with optional subgraph hooks.
     let executor = PlanExecutor::new(
         &state.subgraph_client,
@@ -341,6 +414,11 @@ pub async fn handle(
                 .with_subgraph_request_hook(&req_hook)
                 .with_subgraph_response_hook(&resp_hook)
         }
+        None => executor,
+    };
+
+    let executor = match &state.dedup_layer {
+        Some(dedup) => executor.with_dedup(dedup.clone()),
         None => executor,
     };
 
@@ -364,6 +442,46 @@ pub async fn handle(
             return error_response(format!("execution failed: {e}"));
         }
     };
+
+    // Enforce directive-based authorization.
+    if let (Some(auth_tree), Some(data_val)) = (&state.auth_tree, &data) {
+        let is_authenticated = claims.is_some();
+        let user_scopes: Vec<String> = claims
+            .as_ref()
+            .and_then(|c| c.extra.get("scope"))
+            .and_then(|v| v.as_str())
+            .map(|s| s.split_whitespace().map(String::from).collect())
+            .unwrap_or_default();
+
+        let violations = check_auth_violations(auth_tree, data_val, is_authenticated, &user_scopes);
+
+        if !violations.is_empty() {
+            let mode = state.authz_mode.as_deref().unwrap_or("filter");
+            if mode == "reject" {
+                let error_msgs: Vec<GraphqlError> = violations
+                    .into_iter()
+                    .map(|v| GraphqlError {
+                        message: format!("unauthorized: {v}"),
+                    })
+                    .collect();
+                return Json(GraphqlResponse {
+                    data: None,
+                    errors: Some(error_msgs),
+                })
+                .into_response();
+            }
+            // In filter mode, null out unauthorized fields.
+            if let Some(ref mut d) = data {
+                if let Some(obj) = d.as_object_mut() {
+                    for violation in &violations {
+                        if let Some(field) = violation.strip_prefix("Query.") {
+                            obj.insert(field.to_string(), serde_json::Value::Null);
+                        }
+                    }
+                }
+            }
+        }
+    }
 
     // Apply on_operation_response hook (after execution, before caching).
     apply_on_operation_response_hooks(
@@ -401,5 +519,20 @@ pub async fn handle(
     };
     lattice_telemetry::prometheus::record_http_request("POST", 200, op_type, start.elapsed().as_secs_f64());
 
-    Json(response)
+    // Return multipart/mixed for @defer queries.
+    if lattice_execution::query_has_defer(&request.query) {
+        let body = lattice_execution::encode_multipart_patches(
+            response.data.as_ref().unwrap_or(&serde_json::Value::Null),
+            &[], // No separate patches yet — all data is merged eagerly.
+        );
+
+        return axum::http::Response::builder()
+            .status(200)
+            .header("content-type", "multipart/mixed; boundary=---")
+            .body(axum::body::Body::from(body))
+            .unwrap()
+            .into_response();
+    }
+
+    Json(response).into_response()
 }

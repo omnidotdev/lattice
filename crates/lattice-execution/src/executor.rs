@@ -4,6 +4,7 @@ use std::sync::Arc;
 use lattice_federation::{ConditionNode, FetchNode, FlattenNode, PlanNode, QueryPlan};
 use serde_json::Value;
 
+use crate::dedup::{DedupAction, DedupLayer};
 use crate::dispatch::{ExecutionError, SubgraphClient, SubgraphExecutor, SubgraphRequest, SubgraphResponse};
 
 /// Result of executing a query plan against federated subgraphs.
@@ -38,6 +39,7 @@ pub struct PlanExecutor<'a> {
     in_process: &'a HashMap<String, Arc<dyn SubgraphExecutor>>,
     on_subgraph_request: Option<&'a SubgraphRequestHook<'a>>,
     on_subgraph_response: Option<&'a SubgraphResponseHook<'a>>,
+    dedup: Option<DedupLayer>,
 }
 
 impl<'a> PlanExecutor<'a> {
@@ -53,6 +55,7 @@ impl<'a> PlanExecutor<'a> {
             in_process,
             on_subgraph_request: None,
             on_subgraph_response: None,
+            dedup: None,
         }
     }
 
@@ -67,6 +70,13 @@ impl<'a> PlanExecutor<'a> {
     #[must_use]
     pub fn with_subgraph_response_hook(mut self, hook: &'a SubgraphResponseHook<'a>) -> Self {
         self.on_subgraph_response = Some(hook);
+        self
+    }
+
+    /// Enable request deduplication.
+    #[must_use]
+    pub fn with_dedup(mut self, dedup: DedupLayer) -> Self {
+        self.dedup = Some(dedup);
         self
     }
 
@@ -105,8 +115,9 @@ impl<'a> PlanExecutor<'a> {
                 PlanNode::Parallel(par) => self.execute_parallel(&par.nodes, parent_data, variables).await,
                 PlanNode::Flatten(flatten) => self.execute_flatten(flatten, parent_data, variables).await,
                 PlanNode::Condition(cond) => self.execute_condition(cond, parent_data, variables).await,
-                // Subscription and Defer are not yet supported.
-                PlanNode::Subscription(_) | PlanNode::Defer(_) => Ok(ExecutionResult {
+                PlanNode::Defer(defer_node) => self.execute_defer(defer_node, parent_data, variables).await,
+                // Subscription is not yet supported.
+                PlanNode::Subscription(_) => Ok(ExecutionResult {
                     data: parent_data.cloned(),
                     errors: vec![],
                 }),
@@ -114,6 +125,7 @@ impl<'a> PlanExecutor<'a> {
         })
     }
 
+    #[allow(clippy::too_many_lines)]
     async fn execute_fetch(
         &self,
         fetch: &FetchNode,
@@ -192,7 +204,46 @@ impl<'a> PlanExecutor<'a> {
             "dispatching fetch"
         );
 
-        let mut response = self.client.execute(request).await?;
+        let mut response = if let Some(dedup) = &self.dedup {
+            let key = DedupLayer::hash_request(
+                &request.url,
+                &request.query,
+                request.variables.as_ref(),
+                request.operation_name.as_deref(),
+            );
+
+            match dedup.try_acquire(key) {
+                DedupAction::Execute(ticket) => {
+                    let resp = self.client.execute(request).await;
+                    match resp {
+                        Ok(r) => {
+                            let cloned = r.clone();
+                            ticket.complete(Ok(cloned));
+                            r
+                        }
+                        Err(e) => {
+                            ticket.complete(Err(e.to_string()));
+                            return Err(e);
+                        }
+                    }
+                }
+                DedupAction::Wait(mut rx) => {
+                    let _ = rx.changed().await;
+                    let value = rx.borrow().clone();
+                    match value {
+                        Some(Ok(r)) => r,
+                        Some(Err(msg)) => {
+                            return Err(ExecutionError::Parse(msg));
+                        }
+                        None => {
+                            return Err(ExecutionError::Parse("dedup: inflight request dropped".into()));
+                        }
+                    }
+                }
+            }
+        } else {
+            self.client.execute(request).await?
+        };
 
         // Call subgraph response hook.
         if let Some(hook) = &self.on_subgraph_response {
@@ -327,6 +378,44 @@ impl<'a> PlanExecutor<'a> {
             data: parent_data.cloned(),
             errors: vec![],
         })
+    }
+
+    async fn execute_defer(
+        &self,
+        defer: &hive_router_query_planner::planner::plan_nodes::DeferNode,
+        parent_data: Option<&Value>,
+        variables: Option<&Value>,
+    ) -> Result<ExecutionResult, ExecutionError> {
+        // Execute the primary (non-deferred) node.
+        let mut primary_result = if let Some(node) = &defer.primary.node {
+            self.execute_node(node, parent_data, variables).await?
+        } else {
+            ExecutionResult {
+                data: parent_data.cloned(),
+                errors: vec![],
+            }
+        };
+
+        // Execute deferred nodes and merge their results.
+        // In this initial implementation, deferred data is executed
+        // eagerly and merged into the response. True streaming via
+        // multipart/mixed is handled at the transport layer.
+        for deferred in &defer.deferred {
+            if let Some(node) = &deferred.node {
+                let result = self.execute_node(node, primary_result.data.as_ref(), variables).await?;
+                match &mut primary_result.data {
+                    Some(target) => {
+                        if let Some(source) = result.data {
+                            deep_merge(target, source);
+                        }
+                    }
+                    None => primary_result.data = result.data,
+                }
+                primary_result.errors.extend(result.errors);
+            }
+        }
+
+        Ok(primary_result)
     }
 }
 
@@ -787,6 +876,42 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn dedup_coalesces_identical_parallel_fetches() {
+        let mut server = mockito::Server::new_async().await;
+        // This mock expects exactly ONE request despite two parallel fetches.
+        let mock = server
+            .mock("POST", "/graphql")
+            .expect(1)
+            .with_header("content-type", "application/json")
+            .with_body(r#"{"data":{"me":{"id":"1"}}}"#)
+            .create_async()
+            .await;
+
+        let client = SubgraphClient::new();
+        let urls: HashMap<String, String> = [("users".into(), format!("{}/graphql", server.url()))]
+            .into_iter()
+            .collect();
+
+        let plan = QueryPlan {
+            kind: "QueryPlan",
+            node: Some(PlanNode::Parallel(ParallelNode {
+                nodes: vec![
+                    PlanNode::Fetch(test_fetch_node("users", "{ me { id } }")),
+                    PlanNode::Fetch(test_fetch_node("users", "{ me { id } }")),
+                ],
+            })),
+        };
+
+        let dedup = crate::dedup::DedupLayer::new();
+        let in_process = HashMap::new();
+        let executor = PlanExecutor::new(&client, &urls, &in_process).with_dedup(dedup);
+        let result = executor.execute(&plan, None).await.unwrap();
+
+        assert_eq!(result.data, Some(json!({"me": {"id": "1"}})));
+        mock.assert_async().await;
+    }
+
+    #[tokio::test]
     async fn condition_executes_else_clause_when_variable_missing() {
         let mut server = mockito::Server::new_async().await;
         let mock = server
@@ -817,6 +942,82 @@ mod tests {
 
         assert_eq!(result.data, Some(json!({"fallback": true})));
         mock.assert_async().await;
+    }
+
+    #[tokio::test]
+    async fn execute_handles_empty_defer_node() {
+        use hive_router_query_planner::planner::plan_nodes::DeferNode;
+        use hive_router_query_planner::planner::plan_nodes::DeferPrimary;
+
+        let client = SubgraphClient::new();
+        let urls = HashMap::new();
+        let plan = QueryPlan {
+            kind: "QueryPlan",
+            node: Some(PlanNode::Defer(DeferNode {
+                primary: DeferPrimary {
+                    subselection: None,
+                    node: None,
+                },
+                deferred: vec![],
+            })),
+        };
+
+        let in_process = HashMap::new();
+        let executor = PlanExecutor::new(&client, &urls, &in_process);
+        let result = executor.execute(&plan, None).await.unwrap();
+        // With no primary node and no deferred items, data is None.
+        assert!(result.data.is_none());
+    }
+
+    #[tokio::test]
+    async fn execute_defer_eagerly_merges_deferred() {
+        use hive_router_query_planner::planner::plan_nodes::{DeferNode, DeferPrimary, DeferredNode};
+
+        let mut server = mockito::Server::new_async().await;
+        let mock_primary = server
+            .mock("POST", "/graphql")
+            .with_header("content-type", "application/json")
+            .with_body(r#"{"data":{"me":{"id":"1"}}}"#)
+            .create_async()
+            .await;
+        let mock_deferred = server
+            .mock("POST", "/graphql")
+            .with_header("content-type", "application/json")
+            .with_body(r#"{"data":{"me":{"email":"alice@example.com"}}}"#)
+            .create_async()
+            .await;
+
+        let client = SubgraphClient::new();
+        let urls: HashMap<String, String> = [("users".into(), format!("{}/graphql", server.url()))]
+            .into_iter()
+            .collect();
+
+        let plan = QueryPlan {
+            kind: "QueryPlan",
+            node: Some(PlanNode::Defer(DeferNode {
+                primary: DeferPrimary {
+                    subselection: None,
+                    node: Some(Box::new(PlanNode::Fetch(test_fetch_node("users", "{ me { id } }")))),
+                },
+                deferred: vec![DeferredNode {
+                    depends: vec![],
+                    label: Some("details".into()),
+                    query_path: vec!["me".into()],
+                    subselection: None,
+                    node: Some(Box::new(PlanNode::Fetch(test_fetch_node("users", "{ me { email } }")))),
+                }],
+            })),
+        };
+
+        let in_process = HashMap::new();
+        let executor = PlanExecutor::new(&client, &urls, &in_process);
+        let result = executor.execute(&plan, None).await.unwrap();
+
+        let data = result.data.unwrap();
+        assert_eq!(data["me"]["id"], "1");
+        assert_eq!(data["me"]["email"], "alice@example.com");
+        mock_primary.assert_async().await;
+        mock_deferred.assert_async().await;
     }
 
     #[tokio::test]

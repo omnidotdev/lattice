@@ -414,6 +414,56 @@ contracts:
     }
 
     #[test]
+    fn deserializes_authorization_config() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("lattice.yaml");
+        std::fs::write(
+            &path,
+            r#"
+server:
+  listen: "0.0.0.0:4000"
+supergraph:
+  path: ./supergraph.graphql
+authorization:
+  mode: reject
+  directives:
+    requires_scopes: true
+    requires_authentication: true
+"#,
+        )
+        .unwrap();
+
+        let config = load(&path).unwrap();
+        let auth = config.authorization.unwrap();
+        assert_eq!(auth.mode, "reject");
+        assert!(auth.directives.requires_scopes);
+        assert!(auth.directives.requires_authentication);
+    }
+
+    #[test]
+    fn authorization_defaults_to_filter_mode() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("lattice.yaml");
+        std::fs::write(
+            &path,
+            r#"
+server:
+  listen: "0.0.0.0:4000"
+supergraph:
+  path: ./supergraph.graphql
+authorization:
+  directives:
+    requires_scopes: true
+"#,
+        )
+        .unwrap();
+
+        let config = load(&path).unwrap();
+        let auth = config.authorization.unwrap();
+        assert_eq!(auth.mode, "filter");
+    }
+
+    #[test]
     fn config_with_multi_provider_auth() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("lattice.yaml");

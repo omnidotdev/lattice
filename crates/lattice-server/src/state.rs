@@ -45,6 +45,12 @@ pub struct AppState {
     pub contract_registry: Option<crate::contracts::ContractRegistry>,
     /// In-process subgraph executors (e.g. taproot)
     pub in_process_subgraphs: HashMap<String, Arc<dyn lattice_execution::SubgraphExecutor>>,
+    /// Optional request deduplication layer.
+    pub dedup_layer: Option<lattice_execution::DedupLayer>,
+    /// Directive-based authorization tree.
+    pub auth_tree: Option<lattice_auth::AuthTree>,
+    /// Authorization enforcement mode ("filter" or "reject").
+    pub authz_mode: Option<String>,
 }
 
 impl AppState {
@@ -72,6 +78,29 @@ impl AppState {
         let (jwt_validators, api_key_validator, auth_default, auth_resources, poll_handles) = init_auth(&config);
         let (rate_limiter, rate_limit_defaults) = init_rate_limiter(&config);
         let (entity_cache, cache_ttl) = init_cache(&config);
+
+        let dedup_layer = config.traffic_shaping.as_ref().filter(|ts| ts.dedupe_enabled).map(|_| {
+            tracing::info!("request deduplication enabled");
+            lattice_execution::DedupLayer::new()
+        });
+
+        let (auth_tree, authz_mode) = config.authorization.as_ref().map_or((None, None), |authz| {
+            let tree = supergraph_sdl
+                .map(|sdl| {
+                    lattice_auth::build_auth_tree(
+                        sdl,
+                        authz.directives.requires_scopes,
+                        authz.directives.requires_authentication,
+                    )
+                })
+                .filter(|t| !t.is_empty());
+
+            if tree.is_some() {
+                tracing::info!(mode = %authz.mode, "directive-based authorization enabled");
+            }
+
+            (tree, Some(authz.mode.clone()))
+        });
 
         let contract_registry = config.contracts.as_ref().and_then(|contracts_config| {
             supergraph_sdl.and_then(
@@ -106,6 +135,9 @@ impl AppState {
             supergraph_sdl: supergraph_sdl.map(String::from),
             contract_registry,
             in_process_subgraphs: HashMap::new(),
+            dedup_layer,
+            auth_tree,
+            authz_mode,
         }
     }
 

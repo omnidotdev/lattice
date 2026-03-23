@@ -2,8 +2,8 @@ use lattice_config::PluginConfig;
 
 use crate::error::PluginError;
 use crate::hooks::{
-    HookResult, OnHttpResponseInput, OnOperationResponseInput, OnRequestInput, OnResponseInput, OnSubgraphRequestInput,
-    OnSubgraphResponseInput,
+    HookResult, OnGraphqlParseInput, OnGraphqlValidationInput, OnHttpResponseInput, OnOperationResponseInput,
+    OnQueryPlanInput, OnRequestInput, OnResponseInput, OnSubgraphRequestInput, OnSubgraphResponseInput,
 };
 use crate::instance::PluginInstance;
 
@@ -221,6 +221,81 @@ impl PluginManager {
         HookResult::Continue
     }
 
+    /// Run `on_graphql_parse` across all plugins that registered for it.
+    ///
+    /// Returns the first `Reject` or `Modify` result, or `Continue` if all
+    /// plugins continue.
+    pub fn on_graphql_parse(&self, input: &OnGraphqlParseInput) -> HookResult {
+        for plugin in &self.plugins {
+            if !plugin.has_hook("on_graphql_parse") {
+                continue;
+            }
+
+            match plugin.on_graphql_parse(input) {
+                Ok(HookResult::Continue) => {}
+                Ok(result @ (HookResult::Modify { .. } | HookResult::Reject { .. })) => {
+                    tracing::info!(plugin = plugin.name(), "on_graphql_parse hook intercepted");
+                    return result;
+                }
+                Err(e) => {
+                    tracing::warn!(plugin = plugin.name(), error = %e, "on_graphql_parse plugin error, skipping");
+                }
+            }
+        }
+
+        HookResult::Continue
+    }
+
+    /// Run `on_graphql_validation` across all plugins that registered for it.
+    ///
+    /// Returns the first `Reject` or `Modify` result, or `Continue` if all
+    /// plugins continue.
+    pub fn on_graphql_validation(&self, input: &OnGraphqlValidationInput) -> HookResult {
+        for plugin in &self.plugins {
+            if !plugin.has_hook("on_graphql_validation") {
+                continue;
+            }
+
+            match plugin.on_graphql_validation(input) {
+                Ok(HookResult::Continue) => {}
+                Ok(result @ (HookResult::Modify { .. } | HookResult::Reject { .. })) => {
+                    tracing::info!(plugin = plugin.name(), "on_graphql_validation hook intercepted");
+                    return result;
+                }
+                Err(e) => {
+                    tracing::warn!(plugin = plugin.name(), error = %e, "on_graphql_validation plugin error, skipping");
+                }
+            }
+        }
+
+        HookResult::Continue
+    }
+
+    /// Run `on_query_plan` across all plugins that registered for it.
+    ///
+    /// Returns the first `Reject` or `Modify` result, or `Continue` if all
+    /// plugins continue.
+    pub fn on_query_plan(&self, input: &OnQueryPlanInput) -> HookResult {
+        for plugin in &self.plugins {
+            if !plugin.has_hook("on_query_plan") {
+                continue;
+            }
+
+            match plugin.on_query_plan(input) {
+                Ok(HookResult::Continue) => {}
+                Ok(result @ (HookResult::Modify { .. } | HookResult::Reject { .. })) => {
+                    tracing::info!(plugin = plugin.name(), "on_query_plan hook intercepted");
+                    return result;
+                }
+                Err(e) => {
+                    tracing::warn!(plugin = plugin.name(), error = %e, "on_query_plan plugin error, skipping");
+                }
+            }
+        }
+
+        HookResult::Continue
+    }
+
     /// Number of loaded plugins.
     #[must_use]
     pub const fn len(&self) -> usize {
@@ -258,6 +333,9 @@ fn warn_unrecognized_hooks(name: &str, hooks: &[String]) {
                 | "on_subgraph_response"
                 | "on_operation_response"
                 | "on_http_response"
+                | "on_graphql_parse"
+                | "on_graphql_validation"
+                | "on_query_plan"
         ) {
             tracing::warn!(plugin = %name, hook = %hook, "unrecognized hook name");
         }
@@ -316,6 +394,42 @@ mod tests {
             errors: vec![],
         };
         let result = mgr.on_response(&input);
+        assert!(matches!(result, HookResult::Continue));
+    }
+
+    #[test]
+    fn empty_manager_returns_continue_for_on_graphql_parse() {
+        let mgr = PluginManager::new(vec![]);
+        let input = OnGraphqlParseInput {
+            query: "{ me }".into(),
+            operation_name: None,
+        };
+        let result = mgr.on_graphql_parse(&input);
+        assert!(matches!(result, HookResult::Continue));
+    }
+
+    #[test]
+    fn empty_manager_returns_continue_for_on_graphql_validation() {
+        let mgr = PluginManager::new(vec![]);
+        let input = OnGraphqlValidationInput {
+            query: "{ me }".into(),
+            operation_name: None,
+            is_valid: true,
+            validation_errors: vec![],
+        };
+        let result = mgr.on_graphql_validation(&input);
+        assert!(matches!(result, HookResult::Continue));
+    }
+
+    #[test]
+    fn empty_manager_returns_continue_for_on_query_plan() {
+        let mgr = PluginManager::new(vec![]);
+        let input = OnQueryPlanInput {
+            query: "{ me }".into(),
+            operation_name: None,
+            plan_json: serde_json::json!({"node": null}),
+        };
+        let result = mgr.on_query_plan(&input);
         assert!(matches!(result, HookResult::Continue));
     }
 

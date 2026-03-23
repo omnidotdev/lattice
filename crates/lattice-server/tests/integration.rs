@@ -131,3 +131,60 @@ async fn returns_planning_error_for_invalid_field() {
     let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
     assert!(json["errors"].is_array());
 }
+
+#[tokio::test]
+async fn non_defer_query_returns_json_content_type() {
+    let mut products = mockito::Server::new_async().await;
+    let products_url = format!("{}/graphql", products.url());
+
+    let mock = products
+        .mock("POST", "/graphql")
+        .with_header("content-type", "application/json")
+        .with_body(r#"{"data":{"topProducts":[{"upc":"1","name":"Table","price":899}]}}"#)
+        .create_async()
+        .await;
+
+    let reviews = mockito::Server::new_async().await;
+    let reviews_url = format!("{}/graphql", reviews.url());
+
+    let config = test_config_with_subgraphs(&products_url, &reviews_url);
+    let sdl = supergraph_sdl();
+    let state: SharedState = Arc::new(ArcSwap::from(Arc::new(lattice_server::AppState::new(
+        config,
+        Some(&sdl),
+    ))));
+    let app = lattice_server::router(state);
+
+    drop(products_url);
+    drop(reviews_url);
+
+    // A normal query (no @defer) should return application/json.
+    let body = serde_json::json!({
+        "query": "{ topProducts { upc name price } }"
+    });
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/graphql")
+                .header("content-type", "application/json")
+                .body(Body::from(serde_json::to_vec(&body).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let content_type = response.headers().get("content-type").unwrap().to_str().unwrap();
+    assert!(
+        content_type.contains("application/json"),
+        "expected application/json for non-defer query, got: {content_type}"
+    );
+
+    mock.assert_async().await;
+
+    drop(reviews);
+    drop(products);
+}

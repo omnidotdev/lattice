@@ -87,6 +87,10 @@ tower-http = { version = "0.6", features = ["cors"] }
 metrics = "0.24"
 metrics-exporter-prometheus = "0.16"
 
+# Deduplication
+xxhash-rust = { version = "0.8", features = ["xxh3"] }
+dashmap = "6"
+
 # Testing
 cargo-husky = { version = "1", default-features = false, features = ["precommit-hook", "run-cargo-fmt", "run-cargo-clippy", "run-cargo-test"] }
 

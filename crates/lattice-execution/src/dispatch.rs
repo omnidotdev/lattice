@@ -20,13 +20,13 @@ pub struct SubgraphRequest {
     pub headers: Vec<(String, String)>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct SubgraphResponse {
     pub data: Option<serde_json::Value>,
     pub errors: Option<Vec<SubgraphError>>,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct SubgraphError {
     pub message: String,
 }

@@ -28,6 +28,10 @@ pub struct Config {
     pub csrf: Option<CsrfConfig>,
     #[serde(default)]
     pub limits: Option<LimitsConfig>,
+    #[serde(default)]
+    pub traffic_shaping: Option<TrafficShapingConfig>,
+    #[serde(default)]
+    pub authorization: Option<AuthorizationConfig>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -311,6 +315,35 @@ fn default_max_body_size() -> String {
 
 const fn default_max_aliases() -> usize {
     30
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct AuthorizationConfig {
+    /// "filter" (null unauthorized fields) or "reject" (return error).
+    #[serde(default = "default_authz_mode")]
+    pub mode: String,
+    #[serde(default)]
+    pub directives: AuthorizationDirectivesConfig,
+}
+
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct AuthorizationDirectivesConfig {
+    /// Enforce `@requiresScopes` directives.
+    #[serde(default)]
+    pub requires_scopes: bool,
+    /// Enforce `@requiresAuthentication` directives.
+    #[serde(default)]
+    pub requires_authentication: bool,
+}
+
+fn default_authz_mode() -> String {
+    "filter".into()
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct TrafficShapingConfig {
+    #[serde(default)]
+    pub dedupe_enabled: bool,
 }
 
 #[derive(Debug, Deserialize)]
