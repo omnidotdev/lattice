@@ -7,7 +7,7 @@ use std::path::PathBuf;
 use clap::{Parser, Subcommand};
 
 #[derive(Parser)]
-#[command(name = "lattice", about = "Lattice GraphQL federation gateway CLI")]
+#[command(name = "lattice", version, about = "Lattice GraphQL federation gateway CLI")]
 struct Cli {
     #[command(subcommand)]
     command: Commands,
