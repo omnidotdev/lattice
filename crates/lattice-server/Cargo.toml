@@ -1,6 +1,6 @@
 [package]
 name = "lattice-server"
-version = "0.1.0"
+version.workspace = true
 description = "HTTP server and request pipeline for Lattice gateway"
 edition.workspace = true
 rust-version.workspace = true

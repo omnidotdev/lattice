@@ -17,5 +17,8 @@
 # Node
 node_modules/
 
+# Agentic steering (local only, never shipped)
+.claude/
+
 # Jujutsu
 .jj/

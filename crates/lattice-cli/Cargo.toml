@@ -1,6 +1,6 @@
 [package]
 name = "lattice-cli"
-version = "0.1.0"
+version.workspace = true
 description = "CLI for the Lattice GraphQL federation gateway"
 edition.workspace = true
 rust-version.workspace = true

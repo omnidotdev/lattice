@@ -1,6 +1,6 @@
 [package]
 name = "lattice-cache"
-version = "0.1.0"
+version.workspace = true
 description = "Entity caching for Lattice gateway"
 edition.workspace = true
 rust-version.workspace = true

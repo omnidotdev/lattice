@@ -1,0 +1,241 @@
+name: Release 🏗️
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+concurrency: ${{ github.workflow }}-${{ github.ref }}
+
+permissions:
+  contents: write
+  pull-requests: write
+  packages: write
+
+jobs:
+  release:
+    name: Handle release 🦋
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      published: ${{ steps.changesets.outputs.published }}
+      version_commit: ${{ steps.detect_version_commit.outputs.version_commit }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: oven-sh/setup-bun@v2
+        with:
+          # pin Bun so the toolchain does not drift with floating latest
+          bun-version: 1.4.2
+      - name: Install dependencies
+        run: bun install
+      - name: Create release pull request
+        id: changesets
+        uses: changesets/action@v1.4.9
+        with:
+          version: bun run version && cargo update --workspace && git add Cargo.toml Cargo.lock
+          publish: |
+            echo "Publishing lattice@$(jq -r '.version' package.json)"
+          title: "chore(release): version packages"
+          commit: "chore(release): version packages"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Detect version commit
+        id: detect_version_commit
+        run: |
+          # Detect the merged "version packages" commit even when changesets/action sets published=false
+          FILES=$(git diff-tree --no-commit-id --name-only -r "$GITHUB_SHA")
+          if echo "$FILES" | grep -q '^CHANGELOG.md$' \
+            && echo "$FILES" | grep -q '^Cargo.toml$' \
+            && echo "$FILES" | grep -q '^package.json$'; then
+            echo "version_commit=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "version_commit=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  build:
+    name: Build ${{ matrix.target }} 🔨
+    needs: release
+    if: needs.release.outputs.published == 'true' || needs.release.outputs.version_commit == 'true' || github.event_name == 'workflow_dispatch'
+    timeout-minutes: 30
+    strategy:
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-latest
+          - target: x86_64-apple-darwin
+            os: macos-latest
+          - target: aarch64-apple-darwin
+            os: macos-latest
+
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.98.0
+        with:
+          targets: ${{ matrix.target }}
+      - name: Install cross-compilation tools
+        if: matrix.target == 'aarch64-unknown-linux-gnu'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu
+          echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
+      - name: Build
+        run: cargo build --release --target ${{ matrix.target }} -p lattice-cli
+      - name: Package
+        run: |
+          cd target/${{ matrix.target }}/release
+          tar -czvf lattice-${{ matrix.target }}.tar.gz lattice
+          mv lattice-${{ matrix.target }}.tar.gz ../../../
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: lattice-${{ matrix.target }}
+          path: lattice-${{ matrix.target }}.tar.gz
+
+  image:
+    name: Build and push image 🐳
+    needs: release
+    if: needs.release.outputs.published == 'true' || needs.release.outputs.version_commit == 'true' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Get version from Cargo.toml
+        id: version
+        run: |
+          VERSION=$(grep '^version' Cargo.toml | head -1 | sed 's/.*"\(.*\)".*/\1/')
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Log in to Manifold
+        uses: docker/login-action@v3
+        with:
+          registry: manifold.omni.dev
+          username: ${{ secrets.MANIFOLD_USERNAME }}
+          password: ${{ secrets.MANIFOLD_TOKEN }}
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          platforms: linux/amd64,linux/arm64
+          tags: |
+            ghcr.io/omnidotdev/lattice:${{ steps.version.outputs.version }}
+            ghcr.io/omnidotdev/lattice:latest
+            manifold.omni.dev/omnidotdev/lattice:${{ steps.version.outputs.version }}
+            manifold.omni.dev/omnidotdev/lattice:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  publish:
+    name: Create GitHub Release
+    needs: [release, build, image]
+    if: needs.release.outputs.published == 'true' || needs.release.outputs.version_commit == 'true' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Get version from Cargo.toml
+        id: version
+        run: |
+          VERSION=$(grep '^version' Cargo.toml | head -1 | sed 's/.*"\(.*\)".*/\1/')
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - name: Extract changelog for version
+        id: changelog
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          # Extract the section for this version from CHANGELOG.md
+          BODY=$(awk -v ver="## ${VERSION}" '
+            $0 ~ ver { found=1; next }
+            found && /^## / { exit }
+            found { print }
+          ' CHANGELOG.md)
+          # Use a delimiter to handle multiline output
+          EOF=$(dd if=/dev/urandom bs=15 count=1 status=none | base64)
+          echo "body<<${EOF}" >> "$GITHUB_OUTPUT"
+          echo "${BODY}" >> "$GITHUB_OUTPUT"
+          echo "${EOF}" >> "$GITHUB_OUTPUT"
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v${{ steps.version.outputs.version }}
+          name: v${{ steps.version.outputs.version }}
+          body: ${{ steps.changelog.outputs.body }}
+          files: artifacts/**/*.tar.gz
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Update Homebrew tap
+        env:
+          TAP_GITHUB_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN }}
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          MACOS_X86_SHA256=$(shasum -a 256 artifacts/lattice-x86_64-apple-darwin/lattice-x86_64-apple-darwin.tar.gz | awk '{print $1}')
+          MACOS_ARM_SHA256=$(shasum -a 256 artifacts/lattice-aarch64-apple-darwin/lattice-aarch64-apple-darwin.tar.gz | awk '{print $1}')
+          LINUX_X86_SHA256=$(shasum -a 256 artifacts/lattice-x86_64-unknown-linux-gnu/lattice-x86_64-unknown-linux-gnu.tar.gz | awk '{print $1}')
+          LINUX_ARM_SHA256=$(shasum -a 256 artifacts/lattice-aarch64-unknown-linux-gnu/lattice-aarch64-unknown-linux-gnu.tar.gz | awk '{print $1}')
+
+          git clone https://x-access-token:${TAP_GITHUB_TOKEN}@github.com/omnidotdev/homebrew-tap.git tap
+          cd tap
+
+          mkdir -p Formula
+          cat > Formula/lattice.rb <<'FORMULAEOF'
+          class Lattice < Formula
+            desc "Federated GraphQL gateway for the Omni ecosystem."
+            homepage "https://lattice.omni.dev"
+            version "${VERSION}"
+            license "Apache-2.0"
+
+            on_macos do
+              on_arm do
+                url "https://github.com/omnidotdev/lattice/releases/download/v${VERSION}/lattice-aarch64-apple-darwin.tar.gz"
+                sha256 "${MACOS_ARM_SHA256}"
+              end
+              on_intel do
+                url "https://github.com/omnidotdev/lattice/releases/download/v${VERSION}/lattice-x86_64-apple-darwin.tar.gz"
+                sha256 "${MACOS_X86_SHA256}"
+              end
+            end
+
+            on_linux do
+              on_arm do
+                url "https://github.com/omnidotdev/lattice/releases/download/v${VERSION}/lattice-aarch64-unknown-linux-gnu.tar.gz"
+                sha256 "${LINUX_ARM_SHA256}"
+              end
+              on_intel do
+                url "https://github.com/omnidotdev/lattice/releases/download/v${VERSION}/lattice-x86_64-unknown-linux-gnu.tar.gz"
+                sha256 "${LINUX_X86_SHA256}"
+              end
+            end
+
+            def install
+              bin.install "lattice"
+            end
+
+            test do
+              assert_match version.to_s, shell_output("#{bin}/lattice --version")
+            end
+          end
+          FORMULAEOF
+          sed -i "s/\${VERSION}/${VERSION}/g; s/\${MACOS_ARM_SHA256}/${MACOS_ARM_SHA256}/g; s/\${MACOS_X86_SHA256}/${MACOS_X86_SHA256}/g; s/\${LINUX_X86_SHA256}/${LINUX_X86_SHA256}/g; s/\${LINUX_ARM_SHA256}/${LINUX_ARM_SHA256}/g" Formula/lattice.rb
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Formula/lattice.rb
+          if ! git diff --cached --quiet; then
+            git commit -m "chore: update lattice to v${VERSION}"
+            git push
+          fi

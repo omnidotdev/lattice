@@ -1,6 +1,6 @@
 [package]
 name = "lattice-plugin"
-version = "0.1.0"
+version.workspace = true
 description = "WASI plugin system for Lattice gateway"
 edition.workspace = true
 license.workspace = true
