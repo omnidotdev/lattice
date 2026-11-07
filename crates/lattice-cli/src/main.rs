@@ -46,11 +46,17 @@ enum Commands {
 }
 
 fn main() {
-    tracing_subscriber::fmt()
-        .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
-        .init();
-
     let cli = Cli::parse();
+
+    // `serve` installs its own tracing subscriber via lattice-telemetry (env
+    // filter plus optional JSON and OTLP layers). Installing a basic subscriber
+    // here as well would panic on the second global-default set, so only the
+    // non-serve commands get the basic logger.
+    if !matches!(cli.command, Commands::Serve { .. }) {
+        tracing_subscriber::fmt()
+            .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
+            .init();
+    }
 
     let result = run(cli.command);
     if let Err(e) = result {
