@@ -16,8 +16,11 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      # Install the toolchain pinned in rust-toolchain.toml (not stable), with
+      # the components, so cargo fmt/clippy do not fail under the pin override.
+      - uses: dtolnay/rust-toolchain@master
         with:
+          toolchain: "1.87"
           components: clippy, rustfmt
       - uses: Swatinem/rust-cache@v2
       - name: Check formatting
