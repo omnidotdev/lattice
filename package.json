@@ -1,6 +1,6 @@
 {
   "name": "@omnidotdev/lattice",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "private": true,
   "description": "Federated GraphQL gateway for the Omni ecosystem.",
   "type": "module",
