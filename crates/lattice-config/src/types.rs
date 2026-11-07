@@ -32,6 +32,27 @@ pub struct Config {
     pub traffic_shaping: Option<TrafficShapingConfig>,
     #[serde(default)]
     pub authorization: Option<AuthorizationConfig>,
+    #[serde(default)]
+    pub persisted_queries: Option<PersistedQueriesConfig>,
+}
+
+/// Automatic Persisted Queries (APQ).
+///
+/// When enabled, clients may send an operation's SHA-256 hash in place of the
+/// full query body to save bandwidth. The gateway recovers the registered query
+/// from the hash, or asks the client to retry with the body on a cache miss.
+#[derive(Debug, Deserialize)]
+pub struct PersistedQueriesConfig {
+    #[serde(default)]
+    pub enabled: bool,
+    /// Maximum number of registered operations held in memory before the oldest
+    /// are evicted.
+    #[serde(default = "default_apq_cache_size")]
+    pub cache_size: usize,
+}
+
+const fn default_apq_cache_size() -> usize {
+    1000
 }
 
 #[derive(Debug, Deserialize)]

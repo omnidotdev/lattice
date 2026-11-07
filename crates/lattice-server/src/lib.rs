@@ -1,3 +1,4 @@
+mod apq;
 pub mod contracts;
 mod cors;
 mod csrf;
@@ -11,7 +12,7 @@ mod state;
 mod subscriptions;
 
 use axum::{
-    Router,
+    Json, Router,
     extract::{State, WebSocketUpgrade},
     response::Response,
     routing::{get, post},
@@ -24,6 +25,13 @@ async fn ws_upgrade(ws: WebSocketUpgrade, State(shared): State<SharedState>) -> 
     let state = shared.load_full();
     ws.protocols(["graphql-transport-ws"])
         .on_upgrade(move |socket| subscriptions::handle_socket(socket, state))
+}
+
+/// Liveness probe. Returns 200 while the process is serving requests. Mounted
+/// outside the auth and rate-limit stack so orchestrator health checks never
+/// require credentials or consume a rate-limit budget.
+async fn health() -> Json<serde_json::Value> {
+    Json(serde_json::json!({ "status": "ok" }))
 }
 
 /// Mount MCP routes if enabled in config.
@@ -94,7 +102,8 @@ pub fn router(state: SharedState) -> Router {
             rate_limit::rate_limit,
         ));
 
-    // Mount optional routes outside the auth/rate-limit stack.
+    // Mount health + optional routes outside the auth/rate-limit stack.
+    app = app.route("/health", get(health));
     app = mount_mcp(app, &state);
     app = mount_metrics(app, &state);
 
@@ -266,6 +275,153 @@ supergraph:
         let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
         let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
         assert!(json["errors"].is_array());
+    }
+
+    #[tokio::test]
+    async fn health_endpoint_returns_ok_without_auth() {
+        // Default-deny auth: /health must still answer 200 (mounted outside the
+        // auth stack) so orchestrator probes work without credentials.
+        let config: lattice_config::Config = serde_yaml::from_str(
+            r#"
+server:
+  listen: "0.0.0.0:4000"
+supergraph:
+  path: ./supergraph.graphql
+auth:
+  default: deny
+  api_keys:
+    header_name: X-API-Key
+    keys:
+      - name: test-key
+        value: secret-123
+"#,
+        )
+        .unwrap();
+        let state: SharedState = std::sync::Arc::new(ArcSwap::from(std::sync::Arc::new(AppState::new(config, None))));
+        let app = router(state);
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("GET")
+                    .uri("/health")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(json["status"], "ok");
+    }
+
+    #[tokio::test]
+    async fn apq_registers_with_body_then_serves_by_hash_alone() {
+        let config: lattice_config::Config = serde_yaml::from_str(
+            r#"
+server:
+  listen: "0.0.0.0:4000"
+supergraph:
+  path: ./supergraph.graphql
+persisted_queries:
+  enabled: true
+"#,
+        )
+        .unwrap();
+        let state: SharedState = std::sync::Arc::new(ArcSwap::from(std::sync::Arc::new(AppState::new(config, None))));
+        let app = router(state);
+
+        let query = "{ __typename }";
+        let hash = crate::apq::sha256_hex(query);
+
+        let post = |body: serde_json::Value| {
+            let app = app.clone();
+            async move {
+                let resp = app
+                    .oneshot(
+                        Request::builder()
+                            .method("POST")
+                            .uri("/graphql")
+                            .header("content-type", "application/json")
+                            .body(Body::from(serde_json::to_vec(&body).unwrap()))
+                            .unwrap(),
+                    )
+                    .await
+                    .unwrap();
+                let status = resp.status();
+                let bytes = axum::body::to_bytes(resp.into_body(), usize::MAX).await.unwrap();
+                let json: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+                (status, json)
+            }
+        };
+
+        // 1. Hash only, never registered -> PersistedQueryNotFound (HTTP 200).
+        let (status, json) = post(serde_json::json!({
+            "extensions": { "persistedQuery": { "version": 1, "sha256Hash": hash } }
+        }))
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(json["errors"][0]["message"], "PersistedQueryNotFound");
+
+        // 2. Register by sending the body alongside the matching hash.
+        let (status, json) = post(serde_json::json!({
+            "query": query,
+            "extensions": { "persistedQuery": { "version": 1, "sha256Hash": hash } }
+        }))
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        assert_ne!(json["errors"][0]["message"], "PersistedQueryNotFound");
+
+        // 3. Hash alone now resolves to the registered operation.
+        let (status, json) = post(serde_json::json!({
+            "extensions": { "persistedQuery": { "version": 1, "sha256Hash": hash } }
+        }))
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        assert_ne!(json["errors"][0]["message"], "PersistedQueryNotFound");
+    }
+
+    #[tokio::test]
+    async fn apq_rejects_body_that_does_not_match_hash() {
+        let config: lattice_config::Config = serde_yaml::from_str(
+            r#"
+server:
+  listen: "0.0.0.0:4000"
+supergraph:
+  path: ./supergraph.graphql
+persisted_queries:
+  enabled: true
+"#,
+        )
+        .unwrap();
+        let state: SharedState = std::sync::Arc::new(ArcSwap::from(std::sync::Arc::new(AppState::new(config, None))));
+        let app = router(state);
+
+        // Body does not hash to the claimed value -> rejected, not stored.
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/graphql")
+                    .header("content-type", "application/json")
+                    .body(Body::from(
+                        serde_json::to_vec(&serde_json::json!({
+                            "query": "{ __typename }",
+                            "extensions": { "persistedQuery": { "version": 1, "sha256Hash": "deadbeef" } }
+                        }))
+                        .unwrap(),
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(resp.status(), StatusCode::OK);
+        let bytes = axum::body::to_bytes(resp.into_body(), usize::MAX).await.unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(json["errors"][0]["extensions"]["code"], "PERSISTED_QUERY_INVALID");
     }
 
     #[tokio::test]

@@ -51,6 +51,8 @@ pub struct AppState {
     pub auth_tree: Option<lattice_auth::AuthTree>,
     /// Authorization enforcement mode ("filter" or "reject").
     pub authz_mode: Option<String>,
+    /// Automatic Persisted Queries store, present when APQ is enabled in config.
+    pub apq_store: Option<crate::apq::ApqStore>,
 }
 
 impl AppState {
@@ -117,6 +119,11 @@ impl AppState {
             )
         });
 
+        let apq_store = config.persisted_queries.as_ref().filter(|pq| pq.enabled).map(|pq| {
+            tracing::info!(cache_size = pq.cache_size, "automatic persisted queries enabled");
+            crate::apq::ApqStore::new(pq.cache_size)
+        });
+
         Self {
             config,
             planner,
@@ -138,6 +145,7 @@ impl AppState {
             dedup_layer,
             auth_tree,
             authz_mode,
+            apq_store,
         }
     }
 

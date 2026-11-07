@@ -6,11 +6,15 @@ GraphQL federation gateway for the [Omni](https://omni.dev) ecosystem.
 
 - Federation v2 query planning and execution
 - WebSocket subscriptions (`graphql-transport-ws` protocol)
+- `@defer` incremental delivery
 - JWT authentication with directive enforcement
-- Entity caching and rate limiting (Valkey/Redis)
+- Entity and response caching, plus rate limiting (Valkey/Redis)
+- Query depth, complexity, and alias limits
+- Automatic Persisted Queries (APQ)
 - WASI plugin system (Extism)
 - Built-in GraphiQL playground
-- OpenTelemetry tracing
+- `/health` liveness endpoint
+- Prometheus metrics and OpenTelemetry tracing
 
 ## Quick Start
 
@@ -51,7 +55,7 @@ subgraphs:
     url: http://products:4002/graphql
 ```
 
-See the [configuration reference](docs/) for auth, caching, rate limiting, telemetry, and plugin options.
+See the [configuration reference](https://docs.omni.dev/products/lattice/configuration) for auth, caching, rate limiting, persisted queries, telemetry, and plugin options.
 
 ## License
 

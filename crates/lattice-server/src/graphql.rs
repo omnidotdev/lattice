@@ -35,6 +35,8 @@ pub struct GraphqlResponse {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct GraphqlError {
     pub message: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub extensions: Option<serde_json::Value>,
 }
 
 fn error_response(message: impl Into<String>) -> axum::response::Response {
@@ -42,9 +44,82 @@ fn error_response(message: impl Into<String>) -> axum::response::Response {
         data: None,
         errors: Some(vec![GraphqlError {
             message: message.into(),
+            extensions: None,
         }]),
     })
     .into_response()
+}
+
+/// Request body shape accepted off the wire. Unlike `GraphqlRequest`, `query` is
+/// optional so an APQ hash-only request parses; the effective query is resolved
+/// in the handler.
+#[derive(Debug, Deserialize)]
+pub struct RawGraphqlRequest {
+    #[serde(default)]
+    pub query: Option<String>,
+    #[serde(default, rename = "operationName")]
+    pub operation_name: Option<String>,
+    #[serde(default)]
+    pub variables: Option<serde_json::Value>,
+    #[serde(default)]
+    pub extensions: Option<RequestExtensions>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct RequestExtensions {
+    #[serde(default, rename = "persistedQuery")]
+    pub persisted_query: Option<PersistedQueryExtension>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct PersistedQueryExtension {
+    #[serde(default, rename = "sha256Hash")]
+    pub sha256_hash: Option<String>,
+}
+
+/// Build an APQ protocol error carrying `message` and an `extensions.code`.
+fn apq_error(message: &str, code: &str) -> axum::response::Response {
+    Json(GraphqlResponse {
+        data: None,
+        errors: Some(vec![GraphqlError {
+            message: message.to_string(),
+            extensions: Some(serde_json::json!({ "code": code })),
+        }]),
+    })
+    .into_response()
+}
+
+/// Resolve the effective query, applying Automatic Persisted Queries when a
+/// `persistedQuery` extension is present. Returns `Err(response)` to short
+/// circuit with an APQ protocol error or a missing-query error.
+fn resolve_request_query(
+    state: &AppState,
+    raw_query: Option<String>,
+    persisted: Option<&PersistedQueryExtension>,
+) -> Result<String, Box<axum::response::Response>> {
+    let hash = persisted.and_then(|p| p.sha256_hash.as_deref());
+
+    match (hash, state.apq_store.as_ref()) {
+        // APQ request against a configured store.
+        (Some(hash), Some(store)) => match crate::apq::resolve_apq(raw_query.as_deref(), hash, store) {
+            crate::apq::ApqOutcome::Resolved(query) => Ok(query),
+            crate::apq::ApqOutcome::NotFound => Err(Box::new(apq_error(
+                "PersistedQueryNotFound",
+                "PERSISTED_QUERY_NOT_FOUND",
+            ))),
+            crate::apq::ApqOutcome::HashMismatch => Err(Box::new(apq_error(
+                "provided sha256Hash does not match the query",
+                "PERSISTED_QUERY_INVALID",
+            ))),
+        },
+        // A hash was sent but APQ is disabled: honor an inline query if present,
+        // otherwise report that persisted queries are unsupported.
+        (Some(_), None) => {
+            raw_query.ok_or_else(|| Box::new(apq_error("PersistedQueryNotSupported", "PERSISTED_QUERY_NOT_SUPPORTED")))
+        }
+        // No APQ extension: a query body is required.
+        (None, _) => raw_query.ok_or_else(|| Box::new(error_response("must provide a query string"))),
+    }
 }
 
 /// Build a cache key from query, operation name, and variables.
@@ -283,10 +358,24 @@ pub async fn handle(
     State(shared): State<SharedState>,
     headers: axum::http::HeaderMap,
     claims: Option<axum::Extension<lattice_auth::Claims>>,
-    Json(mut request): Json<GraphqlRequest>,
+    Json(raw): Json<RawGraphqlRequest>,
 ) -> axum::response::Response {
     let start = std::time::Instant::now();
     let state = shared.load_full();
+
+    // Resolve the effective query (applying APQ) before anything else.
+    let persisted = raw.extensions.as_ref().and_then(|e| e.persisted_query.as_ref());
+    let query = match resolve_request_query(&state, raw.query, persisted) {
+        Ok(query) => query,
+        Err(response) => return *response,
+    };
+
+    let mut request = GraphqlRequest {
+        query,
+        operation_name: raw.operation_name,
+        variables: raw.variables,
+    };
+
     tracing::info!(query = %request.query, "received graphql request");
 
     // Validate query limits before planning/execution.
@@ -431,7 +520,10 @@ pub async fn handle(
                     result
                         .errors
                         .into_iter()
-                        .map(|e| GraphqlError { message: e.message })
+                        .map(|e| GraphqlError {
+                            message: e.message,
+                            extensions: None,
+                        })
                         .collect(),
                 )
             };
@@ -462,6 +554,7 @@ pub async fn handle(
                     .into_iter()
                     .map(|v| GraphqlError {
                         message: format!("unauthorized: {v}"),
+                        extensions: None,
                     })
                     .collect();
                 return Json(GraphqlResponse {
