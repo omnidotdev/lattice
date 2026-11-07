@@ -138,12 +138,12 @@ mod tests {
 
     #[test]
     fn parses_requires_authentication_on_type() {
-        let sdl = r#"
+        let sdl = r"
 type User @requiresAuthentication {
     id: ID!
     name: String
 }
-"#;
+";
         let tree = build_auth_tree(sdl, false, true);
         let req = tree.requirement("User", "id").unwrap();
         assert!(req.requires_auth);
@@ -182,11 +182,11 @@ type Admin @requiresAuthentication {
 
     #[test]
     fn returns_empty_tree_when_disabled() {
-        let sdl = r#"
+        let sdl = r"
 type User @requiresAuthentication {
     id: ID!
 }
-"#;
+";
         let tree = build_auth_tree(sdl, false, false);
         assert!(tree.is_empty());
     }

@@ -220,9 +220,8 @@ mod tests {
         ticket.complete(Ok(response));
 
         rx.changed().await.unwrap();
-        let binding = rx.borrow();
-        let result = binding.as_ref().unwrap().as_ref().unwrap();
-        assert_eq!(result.data, Some(json!({"me": {"id": "1"}})));
+        let data = rx.borrow().as_ref().unwrap().as_ref().unwrap().data.clone();
+        assert_eq!(data, Some(json!({"me": {"id": "1"}})));
     }
 
     #[test]

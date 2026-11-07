@@ -1,5 +1,5 @@
-# Local-dev gate only. CI enforces build, tests, and clippy through the Test
-# workflow (.github/workflows/test.yml), which installs the clippy component.
+# Local-dev gate only. CI enforces build, tests, and clippy through the CI
+# workflow (.github/workflows/ci.yml), which installs the clippy component.
 # The changesets release job makes an automated version-bump commit with no Rust
 # toolchain set up, so these checks must not run there.
 if [ -n "$CI" ]; then
