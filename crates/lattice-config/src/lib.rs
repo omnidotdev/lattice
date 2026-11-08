@@ -208,6 +208,41 @@ subgraphs:
     }
 
     #[test]
+    fn load_rest_entities_and_body_config() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("lattice.yaml");
+        std::fs::write(
+            &path,
+            r#"
+server:
+  listen: "0.0.0.0:4000"
+supergraph:
+  path: ./supergraph.graphql
+subgraphs:
+  petstore:
+    schema: ./petstore.graphql
+    rest:
+      base_url: "https://petstore.example.com"
+      fields:
+        createPet:
+          method: POST
+          path: "/pets"
+          body: input
+      entities:
+        Pet:
+          path: "/pets/{id}"
+"#,
+        )
+        .unwrap();
+
+        let config = load(&path).unwrap();
+        let subgraphs = config.subgraphs.unwrap();
+        let rest = subgraphs.get("petstore").unwrap().rest.as_ref().unwrap();
+        assert_eq!(rest.fields.get("createPet").unwrap().body.as_deref(), Some("input"));
+        assert_eq!(rest.entities.get("Pet").unwrap().path, "/pets/{id}");
+    }
+
+    #[test]
     fn load_json_config() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("lattice.json");

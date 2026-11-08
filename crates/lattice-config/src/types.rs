@@ -96,7 +96,13 @@ pub struct RestConnectorConfig {
     #[serde(default)]
     pub headers: HashMap<String, String>,
     /// Map of GraphQL root field name to its REST operation.
+    #[serde(default)]
     pub fields: HashMap<String, RestFieldMapping>,
+    /// Entity resolvers keyed by GraphQL type name, used to resolve federated
+    /// `@key` references (`_entities`) over REST. The representation's key
+    /// fields fill the mapping's `path` placeholders.
+    #[serde(default)]
+    pub entities: HashMap<String, RestFieldMapping>,
 }
 
 /// How one GraphQL root field maps to a REST request.
@@ -116,6 +122,10 @@ pub struct RestFieldMapping {
     /// body as the field result.
     #[serde(default)]
     pub select: Option<String>,
+    /// For write methods, the field argument whose value is sent as the JSON
+    /// request body (for example `input` on a `createPet(input: ...)` mutation).
+    #[serde(default)]
+    pub body: Option<String>,
 }
 
 fn default_http_method() -> String {

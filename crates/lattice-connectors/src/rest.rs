@@ -34,6 +34,9 @@ pub struct RestHttpRequest {
     pub url: String,
     /// Request headers.
     pub headers: Vec<(String, String)>,
+    /// Optional JSON request body (set for write methods via the mapping `body`
+    /// argument).
+    pub body: Option<Value>,
 }
 
 /// Build a concrete HTTP request for a GraphQL root field.
@@ -74,6 +77,7 @@ pub fn build_request(
         method: mapping.method.to_uppercase(),
         url: url.to_string(),
         headers: headers.to_vec(),
+        body: mapping.body.as_ref().and_then(|arg| args.get(arg).cloned()),
     })
 }
 
@@ -259,6 +263,9 @@ impl HttpCaller for ReqwestCaller {
         for (name, value) in &request.headers {
             builder = builder.header(name, value);
         }
+        if let Some(body) = &request.body {
+            builder = builder.json(body);
+        }
         let response = builder.send().await.map_err(|e| RestError::Http(e.to_string()))?;
         response
             .json::<Value>()
@@ -276,12 +283,14 @@ pub struct RestSubgraphExecutor {
     base_url: String,
     headers: Vec<(String, String)>,
     fields: HashMap<String, RestFieldMapping>,
+    entities: HashMap<String, RestFieldMapping>,
     caller: Arc<dyn HttpCaller>,
 }
 
 impl RestSubgraphExecutor {
     /// Construct an executor from its parts (the `caller` is injectable for
-    /// testing).
+    /// testing). Entity resolvers default to empty; add them with
+    /// [`Self::with_entities`].
     #[must_use]
     pub fn new(
         base_url: String,
@@ -293,8 +302,17 @@ impl RestSubgraphExecutor {
             base_url,
             headers,
             fields,
+            entities: HashMap::new(),
             caller,
         }
+    }
+
+    /// Set the entity resolvers (keyed by GraphQL type name) used for `@key`
+    /// (`_entities`) resolution.
+    #[must_use]
+    pub fn with_entities(mut self, entities: HashMap<String, RestFieldMapping>) -> Self {
+        self.entities = entities;
+        self
     }
 
     /// Build an executor from a connector config, using the production HTTP
@@ -312,6 +330,54 @@ impl RestSubgraphExecutor {
             config.fields.clone(),
             Arc::new(ReqwestCaller::new()),
         )
+        .with_entities(config.entities.clone())
+    }
+
+    /// Resolve a batch of federated entity representations over REST, returning
+    /// the `_entities` array (one resolved entity per representation, in order).
+    async fn resolve_entities(&self, args: &Map<String, Value>, errors: &mut Vec<SubgraphError>) -> Value {
+        let Some(representations) = args.get("representations").and_then(Value::as_array) else {
+            return Value::Array(Vec::new());
+        };
+        let mut resolved = Vec::with_capacity(representations.len());
+        for representation in representations {
+            resolved.push(self.resolve_one_entity(representation, errors).await);
+        }
+        Value::Array(resolved)
+    }
+
+    /// Resolve a single entity representation (`{ __typename, ...keys }`) via its
+    /// configured REST resolver, filling the resolver `path` from the key fields.
+    async fn resolve_one_entity(&self, representation: &Value, errors: &mut Vec<SubgraphError>) -> Value {
+        let Some(typename) = representation.get("__typename").and_then(Value::as_str) else {
+            errors.push(SubgraphError {
+                message: "entity representation is missing __typename".to_string(),
+            });
+            return Value::Null;
+        };
+        let Some(mapping) = self.entities.get(typename) else {
+            errors.push(SubgraphError {
+                message: format!("no REST entity resolver for type '{typename}'"),
+            });
+            return Value::Null;
+        };
+        let empty = Map::new();
+        let key_fields = representation.as_object().unwrap_or(&empty);
+
+        let request = match build_request(&self.base_url, &self.headers, mapping, key_fields) {
+            Ok(request) => request,
+            Err(e) => {
+                errors.push(SubgraphError { message: e.to_string() });
+                return Value::Null;
+            }
+        };
+        match self.caller.call(&request).await {
+            Ok(body) => select_value(&body, mapping.select.as_deref()),
+            Err(e) => {
+                errors.push(SubgraphError { message: e.to_string() });
+                Value::Null
+            }
+        }
     }
 }
 
@@ -325,6 +391,13 @@ impl SubgraphExecutor for RestSubgraphExecutor {
         let mut errors: Vec<SubgraphError> = Vec::new();
 
         for root in roots {
+            // Federated entity resolution: `_entities(representations: [...])`.
+            if root.field_name == "_entities" {
+                let value = self.resolve_entities(&root.args, &mut errors).await;
+                data.insert(root.response_key, value);
+                continue;
+            }
+
             let Some(mapping) = self.fields.get(&root.field_name) else {
                 errors.push(SubgraphError {
                     message: format!("no REST mapping for field '{}'", root.field_name),
@@ -375,6 +448,7 @@ mod tests {
             path: path.to_string(),
             query: HashMap::new(),
             select: None,
+            body: None,
         }
     }
 
@@ -560,13 +634,30 @@ mod tests {
 
     struct FakeCaller {
         body: Value,
-        last_url: Mutex<Option<String>>,
+        calls: Mutex<Vec<RestHttpRequest>>,
+    }
+
+    impl FakeCaller {
+        fn new(body: Value) -> Self {
+            Self {
+                body,
+                calls: Mutex::new(Vec::new()),
+            }
+        }
+
+        fn last(&self) -> RestHttpRequest {
+            self.calls.lock().unwrap().last().unwrap().clone()
+        }
+
+        fn call_count(&self) -> usize {
+            self.calls.lock().unwrap().len()
+        }
     }
 
     #[async_trait]
     impl HttpCaller for FakeCaller {
         async fn call(&self, request: &RestHttpRequest) -> Result<Value, RestError> {
-            *self.last_url.lock().unwrap() = Some(request.url.clone());
+            self.calls.lock().unwrap().push(request.clone());
             Ok(self.body.clone())
         }
     }
@@ -585,10 +676,7 @@ mod tests {
     async fn executes_a_rest_field_end_to_end() {
         let mut fields = HashMap::new();
         fields.insert("pet".to_string(), mapping("GET", "/pets/{id}"));
-        let caller = Arc::new(FakeCaller {
-            body: serde_json::json!({ "id": "7", "name": "Rex" }),
-            last_url: Mutex::new(None),
-        });
+        let caller = Arc::new(FakeCaller::new(serde_json::json!({ "id": "7", "name": "Rex" })));
         let executor = RestSubgraphExecutor::new("https://api.example.com".to_string(), vec![], fields, caller.clone());
 
         let response = executor
@@ -596,10 +684,7 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(
-            caller.last_url.lock().unwrap().as_deref(),
-            Some("https://api.example.com/pets/7")
-        );
+        assert_eq!(caller.last().url, "https://api.example.com/pets/7");
         assert_eq!(
             response.data,
             Some(serde_json::json!({ "pet": { "id": "7", "name": "Rex" } }))
@@ -611,10 +696,7 @@ mod tests {
     async fn resolves_variables_before_calling_rest() {
         let mut fields = HashMap::new();
         fields.insert("pet".to_string(), mapping("GET", "/pets/{id}"));
-        let caller = Arc::new(FakeCaller {
-            body: serde_json::json!({ "id": "9" }),
-            last_url: Mutex::new(None),
-        });
+        let caller = Arc::new(FakeCaller::new(serde_json::json!({ "id": "9" })));
         let executor = RestSubgraphExecutor::new("https://api.example.com".to_string(), vec![], fields, caller.clone());
 
         executor
@@ -625,10 +707,7 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(
-            caller.last_url.lock().unwrap().as_deref(),
-            Some("https://api.example.com/pets/9")
-        );
+        assert_eq!(caller.last().url, "https://api.example.com/pets/9");
     }
 
     #[tokio::test]
@@ -637,10 +716,7 @@ mod tests {
         map.select = Some("/data".to_string());
         let mut fields = HashMap::new();
         fields.insert("pet".to_string(), map);
-        let caller = Arc::new(FakeCaller {
-            body: serde_json::json!({ "data": { "id": "7" } }),
-            last_url: Mutex::new(None),
-        });
+        let caller = Arc::new(FakeCaller::new(serde_json::json!({ "data": { "id": "7" } })));
         let executor = RestSubgraphExecutor::new("https://api.example.com".to_string(), vec![], fields, caller);
 
         let response = executor
@@ -653,10 +729,7 @@ mod tests {
 
     #[tokio::test]
     async fn reports_an_error_for_an_unmapped_field() {
-        let caller = Arc::new(FakeCaller {
-            body: Value::Null,
-            last_url: Mutex::new(None),
-        });
+        let caller = Arc::new(FakeCaller::new(Value::Null));
         let executor = RestSubgraphExecutor::new("https://api.example.com".to_string(), vec![], HashMap::new(), caller);
 
         let response = executor
@@ -668,5 +741,118 @@ mod tests {
         let errors = response.errors.unwrap();
         assert_eq!(errors.len(), 1);
         assert!(errors[0].message.contains("pet"));
+    }
+
+    #[test]
+    fn build_request_includes_the_body_argument() {
+        let mut map = mapping("POST", "/pets");
+        map.body = Some("input".to_string());
+        let mut args = Map::new();
+        args.insert("input".to_string(), serde_json::json!({ "name": "Rex" }));
+
+        let req = build_request("https://api.example.com", &[], &map, &args).unwrap();
+
+        assert_eq!(req.method, "POST");
+        assert_eq!(req.body, Some(serde_json::json!({ "name": "Rex" })));
+    }
+
+    #[tokio::test]
+    async fn executes_a_mutation_with_a_request_body() {
+        let mut create = mapping("POST", "/pets");
+        create.body = Some("input".to_string());
+        let mut fields = HashMap::new();
+        fields.insert("createPet".to_string(), create);
+        let caller = Arc::new(FakeCaller::new(serde_json::json!({ "id": "7", "name": "Rex" })));
+        let executor = RestSubgraphExecutor::new("https://api.example.com".to_string(), vec![], fields, caller.clone());
+
+        let response = executor
+            .execute_graphql(subgraph_request(
+                r#"mutation { createPet(input: { name: "Rex" }) { id } }"#,
+                None,
+            ))
+            .await
+            .unwrap();
+
+        let last = caller.last();
+        assert_eq!(last.method, "POST");
+        assert_eq!(last.url, "https://api.example.com/pets");
+        assert_eq!(last.body, Some(serde_json::json!({ "name": "Rex" })));
+        assert_eq!(
+            response.data,
+            Some(serde_json::json!({ "createPet": { "id": "7", "name": "Rex" } }))
+        );
+    }
+
+    #[tokio::test]
+    async fn resolves_an_entity_over_rest() {
+        let mut entities = HashMap::new();
+        entities.insert("Pet".to_string(), mapping("GET", "/pets/{id}"));
+        let caller = Arc::new(FakeCaller::new(serde_json::json!({ "id": "7", "name": "Rex" })));
+        let executor = RestSubgraphExecutor::new(
+            "https://api.example.com".to_string(),
+            vec![],
+            HashMap::new(),
+            caller.clone(),
+        )
+        .with_entities(entities);
+
+        let response = executor
+            .execute_graphql(subgraph_request(
+                "query($representations: [_Any!]!) { _entities(representations: $representations) { ... on Pet { name } } }",
+                Some(serde_json::json!({ "representations": [{ "__typename": "Pet", "id": "7" }] })),
+            ))
+            .await
+            .unwrap();
+
+        assert_eq!(caller.last().url, "https://api.example.com/pets/7");
+        assert_eq!(
+            response.data,
+            Some(serde_json::json!({ "_entities": [{ "id": "7", "name": "Rex" }] }))
+        );
+    }
+
+    #[tokio::test]
+    async fn resolves_multiple_entities_in_order() {
+        let mut entities = HashMap::new();
+        entities.insert("Pet".to_string(), mapping("GET", "/pets/{id}"));
+        let caller = Arc::new(FakeCaller::new(serde_json::json!({ "ok": true })));
+        let executor = RestSubgraphExecutor::new(
+            "https://api.example.com".to_string(),
+            vec![],
+            HashMap::new(),
+            caller.clone(),
+        )
+        .with_entities(entities);
+
+        let response = executor
+            .execute_graphql(subgraph_request(
+                "query($representations: [_Any!]!) { _entities(representations: $representations) { __typename } }",
+                Some(serde_json::json!({ "representations": [
+                    { "__typename": "Pet", "id": "1" },
+                    { "__typename": "Pet", "id": "2" }
+                ] })),
+            ))
+            .await
+            .unwrap();
+
+        assert_eq!(caller.call_count(), 2);
+        assert_eq!(response.data.unwrap()["_entities"].as_array().unwrap().len(), 2);
+    }
+
+    #[tokio::test]
+    async fn errors_when_no_entity_resolver_matches() {
+        let caller = Arc::new(FakeCaller::new(Value::Null));
+        let executor = RestSubgraphExecutor::new("https://api.example.com".to_string(), vec![], HashMap::new(), caller);
+
+        let response = executor
+            .execute_graphql(subgraph_request(
+                "query($representations: [_Any!]!) { _entities(representations: $representations) { __typename } }",
+                Some(serde_json::json!({ "representations": [{ "__typename": "Pet", "id": "1" }] })),
+            ))
+            .await
+            .unwrap();
+
+        assert_eq!(response.data, Some(serde_json::json!({ "_entities": [null] })));
+        assert!(response.errors.unwrap()[0].message.contains("Pet"));
     }
 }
