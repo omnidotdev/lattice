@@ -1,0 +1,26 @@
+[package]
+name = "lattice-connectors"
+version.workspace = true
+description = "Non-GraphQL source connectors for Lattice gateway"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+lattice-config = { workspace = true }
+lattice-execution = { workspace = true }
+async-trait = "0.1.89"
+graphql-tools = { workspace = true }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+cargo-husky = { workspace = true }
+tokio = { workspace = true }
+
+[lints]
+workspace = true

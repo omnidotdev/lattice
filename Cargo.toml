@@ -10,6 +10,7 @@ members = [
     "crates/lattice-cache",
     "crates/lattice-rate-limit",
     "crates/lattice-plugin",
+    "crates/lattice-connectors",
     "crates/lattice-cli",
 ]
 
@@ -32,6 +33,7 @@ lattice-server = { path = "crates/lattice-server" }
 lattice-cache = { path = "crates/lattice-cache" }
 lattice-rate-limit = { path = "crates/lattice-rate-limit" }
 lattice-plugin = { path = "crates/lattice-plugin" }
+lattice-connectors = { path = "crates/lattice-connectors" }
 
 # Plugin runtime
 extism = "1"
