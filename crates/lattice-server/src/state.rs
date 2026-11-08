@@ -77,6 +77,26 @@ impl AppState {
             })
             .unwrap_or_default();
 
+        // Subgraphs backed by a REST connector are served in-process: the
+        // planner routes fetches to them like any subgraph, and the connector
+        // translates each subquery into HTTP calls.
+        let in_process_subgraphs: HashMap<String, Arc<dyn lattice_execution::SubgraphExecutor>> = config
+            .subgraphs
+            .as_ref()
+            .map(|sgs| {
+                sgs.iter()
+                    .filter_map(|(name, sg)| {
+                        sg.rest.as_ref().map(|rest| {
+                            tracing::info!(subgraph = %name, "registered REST connector subgraph");
+                            let executor: Arc<dyn lattice_execution::SubgraphExecutor> =
+                                Arc::new(lattice_connectors::rest::RestSubgraphExecutor::from_config(rest));
+                            (name.clone(), executor)
+                        })
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+
         let (jwt_validators, api_key_validator, auth_default, auth_resources, poll_handles) = init_auth(&config);
         let (rate_limiter, rate_limit_defaults) = init_rate_limiter(&config);
         let (entity_cache, cache_ttl) = init_cache(&config);
@@ -141,7 +161,7 @@ impl AppState {
             cache_ttl,
             supergraph_sdl: supergraph_sdl.map(String::from),
             contract_registry,
-            in_process_subgraphs: HashMap::new(),
+            in_process_subgraphs,
             dedup_layer,
             auth_tree,
             authz_mode,

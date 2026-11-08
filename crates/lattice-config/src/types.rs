@@ -78,6 +78,58 @@ pub struct SubgraphConfig {
     pub schema: Option<String>,
     #[serde(default)]
     pub headers: HashMap<String, String>,
+    /// REST connector. When set, the subgraph is backed by a REST upstream
+    /// instead of a GraphQL `url`, and the gateway translates its subqueries
+    /// into HTTP calls.
+    #[serde(default)]
+    pub rest: Option<RestConnectorConfig>,
+}
+
+/// A REST upstream exposed to the federated graph as a subgraph. The supergraph
+/// SDL declares the subgraph's shape; this config maps its root fields to HTTP
+/// calls.
+#[derive(Debug, Clone, Deserialize)]
+pub struct RestConnectorConfig {
+    /// Base URL prepended to every field's `path`.
+    pub base_url: String,
+    /// Static headers sent on every request.
+    #[serde(default)]
+    pub headers: HashMap<String, String>,
+    /// Map of GraphQL root field name to its REST operation.
+    #[serde(default)]
+    pub fields: HashMap<String, RestFieldMapping>,
+    /// Entity resolvers keyed by GraphQL type name, used to resolve federated
+    /// `@key` references (`_entities`) over REST. The representation's key
+    /// fields fill the mapping's `path` placeholders.
+    #[serde(default)]
+    pub entities: HashMap<String, RestFieldMapping>,
+}
+
+/// How one GraphQL root field maps to a REST request.
+#[derive(Debug, Clone, Deserialize)]
+pub struct RestFieldMapping {
+    /// HTTP method (defaults to `GET`).
+    #[serde(default = "default_http_method")]
+    pub method: String,
+    /// Path template appended to the connector `base_url`. `{arg}` placeholders
+    /// are filled from the field's arguments.
+    pub path: String,
+    /// Query-string parameters, mapping a parameter name to a field argument
+    /// name.
+    #[serde(default)]
+    pub query: HashMap<String, String>,
+    /// Optional JSON Pointer (RFC 6901) selecting a sub-value of the response
+    /// body as the field result.
+    #[serde(default)]
+    pub select: Option<String>,
+    /// For write methods, the field argument whose value is sent as the JSON
+    /// request body (for example `input` on a `createPet(input: ...)` mutation).
+    #[serde(default)]
+    pub body: Option<String>,
+}
+
+fn default_http_method() -> String {
+    "GET".to_string()
 }
 
 #[derive(Debug, Deserialize)]

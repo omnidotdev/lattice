@@ -5,7 +5,7 @@ mod watcher;
 pub use types::{
     ApiKeyEntry, ApiKeysConfig, Config, ContractVariantConfig, ContractsConfig, CorsConfig, CsrfConfig, JwtConfig,
     JwtProviderConfig, LimitsConfig, McpConfig, PersistedQueriesConfig, PluginConfig, PrometheusConfig,
-    ResourceAuthConfig, ResourceAuthOverride, TelemetryConfig,
+    ResourceAuthConfig, ResourceAuthOverride, RestConnectorConfig, RestFieldMapping, SubgraphConfig, TelemetryConfig,
 };
 pub use watcher::ConfigWatcher;
 
@@ -134,6 +134,112 @@ supergraph:
         let config = load(&path).unwrap();
         assert_eq!(config.server.listen, "0.0.0.0:4000");
         assert_eq!(config.supergraph.path.as_deref(), Some("./supergraph.graphql"));
+    }
+
+    #[test]
+    fn load_rest_connector_config() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("lattice.yaml");
+        std::fs::write(
+            &path,
+            r#"
+server:
+  listen: "0.0.0.0:4000"
+supergraph:
+  path: ./supergraph.graphql
+subgraphs:
+  petstore:
+    rest:
+      base_url: "https://petstore.example.com"
+      headers:
+        Authorization: "Bearer token"
+      fields:
+        pet:
+          method: GET
+          path: "/pets/{id}"
+          query:
+            detail: verbose
+          select: "/data"
+"#,
+        )
+        .unwrap();
+
+        let config = load(&path).unwrap();
+        let subgraphs = config.subgraphs.unwrap();
+        let rest = subgraphs.get("petstore").unwrap().rest.as_ref().unwrap();
+        assert_eq!(rest.base_url, "https://petstore.example.com");
+        assert_eq!(
+            rest.headers.get("Authorization").map(String::as_str),
+            Some("Bearer token")
+        );
+        let pet = rest.fields.get("pet").unwrap();
+        assert_eq!(pet.method, "GET");
+        assert_eq!(pet.path, "/pets/{id}");
+        assert_eq!(pet.query.get("detail").map(String::as_str), Some("verbose"));
+        assert_eq!(pet.select.as_deref(), Some("/data"));
+    }
+
+    #[test]
+    fn rest_field_method_defaults_to_get() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("lattice.yaml");
+        std::fs::write(
+            &path,
+            r#"
+server:
+  listen: "0.0.0.0:4000"
+supergraph:
+  path: ./supergraph.graphql
+subgraphs:
+  petstore:
+    rest:
+      base_url: "https://petstore.example.com"
+      fields:
+        pets:
+          path: "/pets"
+"#,
+        )
+        .unwrap();
+
+        let config = load(&path).unwrap();
+        let subgraphs = config.subgraphs.unwrap();
+        let rest = subgraphs.get("petstore").unwrap().rest.as_ref().unwrap();
+        assert_eq!(rest.fields.get("pets").unwrap().method, "GET");
+    }
+
+    #[test]
+    fn load_rest_entities_and_body_config() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("lattice.yaml");
+        std::fs::write(
+            &path,
+            r#"
+server:
+  listen: "0.0.0.0:4000"
+supergraph:
+  path: ./supergraph.graphql
+subgraphs:
+  petstore:
+    schema: ./petstore.graphql
+    rest:
+      base_url: "https://petstore.example.com"
+      fields:
+        createPet:
+          method: POST
+          path: "/pets"
+          body: input
+      entities:
+        Pet:
+          path: "/pets/{id}"
+"#,
+        )
+        .unwrap();
+
+        let config = load(&path).unwrap();
+        let subgraphs = config.subgraphs.unwrap();
+        let rest = subgraphs.get("petstore").unwrap().rest.as_ref().unwrap();
+        assert_eq!(rest.fields.get("createPet").unwrap().body.as_deref(), Some("input"));
+        assert_eq!(rest.entities.get("Pet").unwrap().path, "/pets/{id}");
     }
 
     #[test]

@@ -2073,6 +2073,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "lattice-connectors"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "cargo-husky",
+ "graphql-tools",
+ "lattice-config",
+ "lattice-execution",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "lattice-execution"
 version = "0.1.0"
 dependencies = [
@@ -2141,6 +2158,7 @@ dependencies = [
  "lattice-auth",
  "lattice-cache",
  "lattice-config",
+ "lattice-connectors",
  "lattice-execution",
  "lattice-federation",
  "lattice-plugin",

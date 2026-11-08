@@ -11,6 +11,7 @@ repository.workspace = true
 lattice-auth = { workspace = true }
 lattice-cache = { workspace = true }
 lattice-config = { workspace = true }
+lattice-connectors = { workspace = true }
 lattice-federation = { workspace = true }
 lattice-execution = { workspace = true }
 lattice-plugin = { workspace = true }
