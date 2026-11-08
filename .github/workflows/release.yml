@@ -73,8 +73,11 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@1.98.0
+      # Install the toolchain pinned in rust-toolchain.toml (1.87), not 1.98, so
+      # the cross target std lands on the toolchain cargo actually builds with
+      - uses: dtolnay/rust-toolchain@master
         with:
+          toolchain: "1.87"
           targets: ${{ matrix.target }}
       - name: Install cross-compilation tools
         if: matrix.target == 'aarch64-unknown-linux-gnu'
@@ -116,12 +119,10 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Log in to Manifold
-        uses: docker/login-action@v3
-        with:
-          registry: api.manifold.omni.dev
-          username: ${{ secrets.MANIFOLD_USERNAME }}
-          password: ${{ secrets.MANIFOLD_TOKEN }}
+      # Manifold registry push is deferred until the fleet-wide
+      # REGISTRY_REQUIRE_AUTH cutover lands: while it is off, Manifold refuses all
+      # writes over the public host. Re-add a Manifold login step and the
+      # api.manifold.omni.dev/omnidotdev/lattice tags once the cutover completes
       - name: Build and push
         uses: docker/build-push-action@v6
         with:
@@ -131,8 +132,6 @@ jobs:
           tags: |
             ghcr.io/omnidotdev/lattice:${{ steps.version.outputs.version }}
             ghcr.io/omnidotdev/lattice:latest
-            api.manifold.omni.dev/omnidotdev/lattice:${{ steps.version.outputs.version }}
-            api.manifold.omni.dev/omnidotdev/lattice:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
