@@ -47,7 +47,6 @@ jobs:
           # Detect the merged "version packages" commit even when changesets/action sets published=false
           FILES=$(git diff-tree --no-commit-id --name-only -r "$GITHUB_SHA")
           if echo "$FILES" | grep -q '^CHANGELOG.md$' \
-            && echo "$FILES" | grep -q '^Cargo.toml$' \
             && echo "$FILES" | grep -q '^package.json$'; then
             echo "version_commit=true" >> "$GITHUB_OUTPUT"
           else
@@ -67,7 +66,7 @@ jobs:
           - target: aarch64-unknown-linux-gnu
             os: ubuntu-latest
           - target: x86_64-apple-darwin
-            os: macos-latest
+            os: macos-13
           - target: aarch64-apple-darwin
             os: macos-latest
 
@@ -120,7 +119,7 @@ jobs:
       - name: Log in to Manifold
         uses: docker/login-action@v3
         with:
-          registry: manifold.omni.dev
+          registry: api.manifold.omni.dev
           username: ${{ secrets.MANIFOLD_USERNAME }}
           password: ${{ secrets.MANIFOLD_TOKEN }}
       - name: Build and push
@@ -132,8 +131,8 @@ jobs:
           tags: |
             ghcr.io/omnidotdev/lattice:${{ steps.version.outputs.version }}
             ghcr.io/omnidotdev/lattice:latest
-            manifold.omni.dev/omnidotdev/lattice:${{ steps.version.outputs.version }}
-            manifold.omni.dev/omnidotdev/lattice:latest
+            api.manifold.omni.dev/omnidotdev/lattice:${{ steps.version.outputs.version }}
+            api.manifold.omni.dev/omnidotdev/lattice:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
