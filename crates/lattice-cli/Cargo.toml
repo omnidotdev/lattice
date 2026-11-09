@@ -13,13 +13,16 @@ path = "src/main.rs"
 
 [dependencies]
 lattice-config = { workspace = true }
+lattice-connectors = { workspace = true }
 lattice-plugin = { workspace = true }
 lattice-server = { workspace = true }
 lattice-telemetry = { workspace = true }
 arc-swap = { workspace = true }
 axum = { workspace = true }
 clap = { workspace = true }
+serde = { workspace = true }
 serde_json = { workspace = true }
+serde_yaml = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }

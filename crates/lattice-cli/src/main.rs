@@ -1,5 +1,6 @@
 mod check;
 mod compose;
+mod openapi;
 mod serve;
 
 use std::path::PathBuf;
@@ -43,6 +44,24 @@ enum Commands {
         #[arg(short, long, default_value = "lattice.yaml")]
         config: PathBuf,
     },
+
+    /// Generate a REST subgraph (SDL + connector config) from an OpenAPI spec.
+    Openapi {
+        /// Path to the OpenAPI 3.x spec (JSON or YAML).
+        spec: PathBuf,
+
+        /// Output path for the generated GraphQL SDL.
+        #[arg(short, long, default_value = "openapi.graphql")]
+        output: PathBuf,
+
+        /// Subgraph name used in the printed config snippet.
+        #[arg(short, long, default_value = "rest")]
+        name: String,
+
+        /// Override the base URL (otherwise taken from the spec `servers`).
+        #[arg(long)]
+        base_url: Option<String>,
+    },
 }
 
 fn main() {
@@ -73,6 +92,12 @@ fn run(command: Commands) -> Result<(), Box<dyn std::error::Error>> {
             rt.block_on(serve::run(&config, hot_reload))?;
         }
         Commands::Check { config } => check::run(&config)?,
+        Commands::Openapi {
+            spec,
+            output,
+            name,
+            base_url,
+        } => openapi::run(&spec, &output, &name, base_url.as_deref())?,
     }
     Ok(())
 }

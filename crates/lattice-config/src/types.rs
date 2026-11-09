@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Deserialize)]
 pub struct Config {
@@ -88,25 +88,25 @@ pub struct SubgraphConfig {
 /// A REST upstream exposed to the federated graph as a subgraph. The supergraph
 /// SDL declares the subgraph's shape; this config maps its root fields to HTTP
 /// calls.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RestConnectorConfig {
     /// Base URL prepended to every field's `path`.
     pub base_url: String,
     /// Static headers sent on every request.
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
     pub headers: HashMap<String, String>,
     /// Map of GraphQL root field name to its REST operation.
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
     pub fields: HashMap<String, RestFieldMapping>,
     /// Entity resolvers keyed by GraphQL type name, used to resolve federated
     /// `@key` references (`_entities`) over REST. The representation's key
     /// fields fill the mapping's `path` placeholders.
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
     pub entities: HashMap<String, RestFieldMapping>,
 }
 
 /// How one GraphQL root field maps to a REST request.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RestFieldMapping {
     /// HTTP method (defaults to `GET`).
     #[serde(default = "default_http_method")]
@@ -116,15 +116,15 @@ pub struct RestFieldMapping {
     pub path: String,
     /// Query-string parameters, mapping a parameter name to a field argument
     /// name.
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
     pub query: HashMap<String, String>,
     /// Optional JSON Pointer (RFC 6901) selecting a sub-value of the response
     /// body as the field result.
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub select: Option<String>,
     /// For write methods, the field argument whose value is sent as the JSON
     /// request body (for example `input` on a `createPet(input: ...)` mutation).
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub body: Option<String>,
 }
 

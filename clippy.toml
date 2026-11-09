@@ -1,0 +1,3 @@
+# Product and protocol terms that are valid as-is in doc comments (extends the
+# clippy default list, which already covers GraphQL, GitHub, etc.)
+doc-valid-idents = ["OpenAPI", ".."]
