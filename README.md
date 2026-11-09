@@ -7,13 +7,14 @@
 
 </div>
 
-**Lattice** is a Rust federation gateway that unifies your GraphQL and REST services into one graph and plans every query across them. Self-hostable and Apache-2.0.
+**Lattice** is a Rust federation gateway that unifies your GraphQL, REST, and gRPC services into one graph and plans every query across them. Self-hostable and Apache-2.0.
 
 Full documentation lives at [docs.omni.dev/products/lattice](https://docs.omni.dev/products/lattice).
 
 ## Features
 
 - Federation v2 query planning and execution
+- REST and gRPC source connectors (OpenAPI and protobuf descriptor ingestion)
 - WebSocket subscriptions (`graphql-transport-ws` protocol)
 - `@defer` incremental delivery
 - JWT authentication with directive enforcement
