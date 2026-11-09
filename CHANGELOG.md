@@ -1,5 +1,11 @@
 # @omnidotdev/lattice
 
+## 0.2.0
+
+### Minor Changes
+
+- [`982b20c`](https://github.com/omnidotdev/lattice/commit/982b20c45f0a37e33e76a885c77f5a70ec5d5184) Thanks [@coopbri](https://github.com/coopbri)! - Generate a REST subgraph directly from an OpenAPI spec. `lattice openapi <spec>` reads an OpenAPI 3.x document (JSON or YAML) and emits a GraphQL SDL plus a ready-to-paste `lattice.yaml` connector block: each operation becomes a Query or Mutation field, path and query parameters become arguments, request bodies become input types, and referenced schemas become GraphQL types. No schema or field mappings need to be hand-written.
+
 ## 0.1.0
 
 ### Minor Changes
