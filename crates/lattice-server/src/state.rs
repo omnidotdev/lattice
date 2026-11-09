@@ -97,6 +97,8 @@ impl AppState {
             })
             .unwrap_or_default();
 
+        warn_unexecutable_grpc_subgraphs(&config);
+
         let (jwt_validators, api_key_validator, auth_default, auth_resources, poll_handles) = init_auth(&config);
         let (rate_limiter, rate_limit_defaults) = init_rate_limiter(&config);
         let (entity_cache, cache_ttl) = init_cache(&config);
@@ -182,6 +184,23 @@ type AuthInit = (
     Option<lattice_config::ResourceAuthConfig>,
     Vec<tokio::task::JoinHandle<()>>,
 );
+
+/// Warn for any gRPC connector subgraph, which composes (its generated SDL is
+/// used) but has no in-process executor yet, so its fields will not resolve at
+/// request time. Surfacing this is better than dropping the subgraph silently.
+fn warn_unexecutable_grpc_subgraphs(config: &Config) {
+    let Some(subgraphs) = config.subgraphs.as_ref() else {
+        return;
+    };
+    for (name, sg) in subgraphs {
+        if sg.grpc.is_some() {
+            tracing::warn!(
+                subgraph = %name,
+                "gRPC connector execution is not yet available; the generated SDL composes, but this subgraph's fields will not resolve at request time"
+            );
+        }
+    }
+}
 
 /// Initialize auth validators from config.
 fn init_auth(config: &Config) -> AuthInit {

@@ -2013,7 +2013,7 @@ dependencies = [
 
 [[package]]
 name = "lattice-auth"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "cargo-husky",
  "jsonwebtoken",
@@ -2028,7 +2028,7 @@ dependencies = [
 
 [[package]]
 name = "lattice-cache"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "cargo-husky",
  "deadpool-redis",
@@ -2040,7 +2040,7 @@ dependencies = [
 
 [[package]]
 name = "lattice-cli"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "arc-swap",
  "axum",
@@ -2051,6 +2051,8 @@ dependencies = [
  "lattice-plugin",
  "lattice-server",
  "lattice-telemetry",
+ "prost 0.13.5",
+ "prost-types",
  "serde",
  "serde_json",
  "serde_yaml",
@@ -2062,7 +2064,7 @@ dependencies = [
 
 [[package]]
 name = "lattice-config"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "cargo-husky",
  "notify",
@@ -2077,13 +2079,15 @@ dependencies = [
 
 [[package]]
 name = "lattice-connectors"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "async-trait",
  "cargo-husky",
  "graphql-tools",
  "lattice-config",
  "lattice-execution",
+ "prost 0.13.5",
+ "prost-types",
  "reqwest",
  "serde",
  "serde_json",
@@ -2094,7 +2098,7 @@ dependencies = [
 
 [[package]]
 name = "lattice-execution"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "async-trait",
  "cargo-husky",
@@ -2114,7 +2118,7 @@ dependencies = [
 
 [[package]]
 name = "lattice-federation"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "cargo-husky",
  "graphql-tools",
@@ -2124,7 +2128,7 @@ dependencies = [
 
 [[package]]
 name = "lattice-plugin"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "extism",
  "lattice-config",
@@ -2138,7 +2142,7 @@ dependencies = [
 
 [[package]]
 name = "lattice-rate-limit"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "cargo-husky",
  "deadpool-redis",
@@ -2149,7 +2153,7 @@ dependencies = [
 
 [[package]]
 name = "lattice-server"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "arc-swap",
  "axum",
@@ -2181,7 +2185,7 @@ dependencies = [
 
 [[package]]
 name = "lattice-telemetry"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "axum",
  "cargo-husky",
@@ -2956,6 +2960,15 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
+]
+
+[[package]]
+name = "prost-types"
+version = "0.13.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "52c2c1bf36ddb1a1c396b3601a3cec27c2462e45f07c386894ec3ccf5332bd16"
+dependencies = [
+ "prost 0.13.5",
 ]
 
 [[package]]

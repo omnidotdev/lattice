@@ -83,6 +83,11 @@ pub struct SubgraphConfig {
     /// into HTTP calls.
     #[serde(default)]
     pub rest: Option<RestConnectorConfig>,
+    /// gRPC connector. When set, the subgraph is backed by a gRPC upstream, and
+    /// the gateway translates its subqueries into unary gRPC method calls using
+    /// a compiled protobuf descriptor set.
+    #[serde(default)]
+    pub grpc: Option<GrpcConnectorConfig>,
 }
 
 /// A REST upstream exposed to the federated graph as a subgraph. The supergraph
@@ -135,6 +140,43 @@ pub struct RestFieldMapping {
 
 fn default_http_method() -> String {
     "GET".to_string()
+}
+
+/// A gRPC upstream exposed to the federated graph as a subgraph.
+///
+/// The supergraph SDL declares the subgraph's shape; this config maps its root
+/// fields to unary gRPC method calls. A compiled protobuf `FileDescriptorSet`
+/// supplies the wire coding, so no `.proto` is parsed at request time.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GrpcConnectorConfig {
+    /// gRPC server endpoint, for example `http://orders.internal:50051`.
+    pub endpoint: String,
+    /// Filesystem path to a compiled protobuf `FileDescriptorSet` (produced by
+    /// `protoc --descriptor_set_out`), used to encode requests and decode
+    /// responses for the configured methods.
+    pub descriptor_set: String,
+    /// Static metadata (gRPC headers) sent on every request.
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+    pub metadata: HashMap<String, String>,
+    /// Map of GraphQL root field name to the unary gRPC method it calls.
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+    pub fields: HashMap<String, GrpcMethodMapping>,
+}
+
+/// How one GraphQL root field maps to a unary gRPC method call.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GrpcMethodMapping {
+    /// Fully-qualified service name, for example `orders.v1.OrderService`.
+    pub service: String,
+    /// Method name on that service, for example `GetOrder`.
+    pub method: String,
+    /// Field argument whose value is the request message (defaults to `input`).
+    #[serde(default = "default_grpc_input")]
+    pub input: String,
+}
+
+fn default_grpc_input() -> String {
+    "input".to_string()
 }
 
 #[derive(Debug, Deserialize)]
