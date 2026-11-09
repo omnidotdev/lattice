@@ -1,5 +1,11 @@
 # @omnidotdev/lattice
 
+## 0.3.0
+
+### Minor Changes
+
+- [`37d3f6a`](https://github.com/omnidotdev/lattice/commit/37d3f6ac1346807bfb17f896b3e23cffa8e51c91) Thanks [@coopbri](https://github.com/coopbri)! - Add `response` field remapping to REST connectors. When an upstream's JSON field names differ from the GraphQL schema, map a GraphQL field name to a source key or JSON Pointer in the (post-`select`) response; unmapped keys pass through and arrays are remapped element by element.
+
 ## 0.2.0
 
 ### Minor Changes
