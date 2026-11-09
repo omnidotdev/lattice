@@ -11,8 +11,10 @@ repository.workspace = true
 lattice-config = { workspace = true }
 lattice-execution = { workspace = true }
 async-trait = "0.1.89"
+deadpool-postgres = { workspace = true }
 graphql-tools = { workspace = true }
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+tokio-postgres = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }

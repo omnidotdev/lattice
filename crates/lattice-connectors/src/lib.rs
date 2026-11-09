@@ -6,4 +6,5 @@
 //! upstream protocol and shapes the response back into GraphQL.
 
 pub mod openapi;
+pub mod postgres;
 pub mod rest;
