@@ -85,19 +85,10 @@ impl AppState {
             .as_ref()
             .map(|sgs| {
                 sgs.iter()
-                    .filter_map(|(name, sg)| {
-                        sg.rest.as_ref().map(|rest| {
-                            tracing::info!(subgraph = %name, "registered REST connector subgraph");
-                            let executor: Arc<dyn lattice_execution::SubgraphExecutor> =
-                                Arc::new(lattice_connectors::rest::RestSubgraphExecutor::from_config(rest));
-                            (name.clone(), executor)
-                        })
-                    })
+                    .filter_map(|(name, sg)| register_connector(name, sg))
                     .collect()
             })
             .unwrap_or_default();
-
-        warn_unexecutable_grpc_subgraphs(&config);
 
         let (jwt_validators, api_key_validator, auth_default, auth_resources, poll_handles) = init_auth(&config);
         let (rate_limiter, rate_limit_defaults) = init_rate_limiter(&config);
@@ -185,21 +176,31 @@ type AuthInit = (
     Vec<tokio::task::JoinHandle<()>>,
 );
 
-/// Warn for any gRPC connector subgraph, which composes (its generated SDL is
-/// used) but has no in-process executor yet, so its fields will not resolve at
-/// request time. Surfacing this is better than dropping the subgraph silently.
-fn warn_unexecutable_grpc_subgraphs(config: &Config) {
-    let Some(subgraphs) = config.subgraphs.as_ref() else {
-        return;
-    };
-    for (name, sg) in subgraphs {
-        if sg.grpc.is_some() {
-            tracing::warn!(
-                subgraph = %name,
-                "gRPC connector execution is not yet available; the generated SDL composes, but this subgraph's fields will not resolve at request time"
-            );
-        }
+/// Build the in-process executor for a connector subgraph (REST or gRPC), or
+/// `None` for a plain GraphQL `url` subgraph or a connector that fails to load.
+fn register_connector(
+    name: &str,
+    sg: &lattice_config::SubgraphConfig,
+) -> Option<(String, Arc<dyn lattice_execution::SubgraphExecutor>)> {
+    if let Some(rest) = sg.rest.as_ref() {
+        tracing::info!(subgraph = %name, "registered REST connector subgraph");
+        let executor: Arc<dyn lattice_execution::SubgraphExecutor> =
+            Arc::new(lattice_connectors::rest::RestSubgraphExecutor::from_config(rest));
+        return Some((name.to_string(), executor));
     }
+    if let Some(grpc) = sg.grpc.as_ref() {
+        return match lattice_connectors::grpc::GrpcSubgraphExecutor::from_config(grpc) {
+            Ok(executor) => {
+                tracing::info!(subgraph = %name, "registered gRPC connector subgraph");
+                Some((name.to_string(), Arc::new(executor)))
+            }
+            Err(e) => {
+                tracing::error!(subgraph = %name, error = %e, "failed to initialize gRPC connector subgraph");
+                None
+            }
+        };
+    }
+    None
 }
 
 /// Initialize auth validators from config.

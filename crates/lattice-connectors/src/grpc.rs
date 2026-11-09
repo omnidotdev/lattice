@@ -8,12 +8,19 @@
 //! a service becomes a root field, and each referenced message becomes a GraphQL
 //! type. Streaming methods are skipped (not representable as a single field).
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::fmt::Write as _;
+use std::sync::Arc;
 
+use async_trait::async_trait;
+use bytes::{Buf, BufMut};
 use lattice_config::{GrpcConnectorConfig, GrpcMethodMapping};
+use lattice_execution::{ExecutionError, SubgraphError, SubgraphExecutor, SubgraphRequest, SubgraphResponse};
+use prost::Message as _;
+use prost_reflect::{DescriptorPool, DynamicMessage, MessageDescriptor};
 use prost_types::field_descriptor_proto::{Label, Type};
 use prost_types::{DescriptorProto, EnumDescriptorProto, FileDescriptorSet, MethodDescriptorProto};
+use serde_json::{Map, Value};
 use thiserror::Error;
 
 /// Errors raised while generating a subgraph from a protobuf descriptor set.
@@ -440,6 +447,227 @@ fn render_fields(reg: &Registry, m: &DescriptorProto, input: bool, sdl: &mut Str
     }
 }
 
+// ---------------------------------------------------------------------------
+// Runtime executor: resolve GraphQL subqueries against a gRPC upstream.
+// ---------------------------------------------------------------------------
+
+/// An error raised while executing a gRPC call for a subgraph field.
+#[derive(Debug, Error)]
+pub enum GrpcExecError {
+    /// The descriptor set could not be read or decoded.
+    #[error("failed to load descriptor set: {0}")]
+    Descriptor(String),
+    /// The configured service or method was not found in the descriptor set.
+    #[error("unknown gRPC method: {0}")]
+    UnknownMethod(String),
+    /// The GraphQL input could not be encoded as the request message.
+    #[error("failed to encode request message: {0}")]
+    Encode(String),
+    /// The response bytes could not be decoded as the response message.
+    #[error("failed to decode response message: {0}")]
+    Decode(String),
+    /// The gRPC transport call failed.
+    #[error("gRPC call failed: {0}")]
+    Call(String),
+}
+
+/// Encode a GraphQL input value as the wire bytes of `desc`, via the proto3
+/// JSON mapping (so GraphQL field names line up with the message fields).
+fn encode_request(desc: &MessageDescriptor, json: &Value) -> Result<Vec<u8>, GrpcExecError> {
+    let msg = DynamicMessage::deserialize(desc.clone(), json).map_err(|e| GrpcExecError::Encode(e.to_string()))?;
+    Ok(msg.encode_to_vec())
+}
+
+/// Decode response wire bytes of `desc` into a JSON value (proto3 JSON mapping).
+fn decode_response(desc: &MessageDescriptor, bytes: &[u8]) -> Result<Value, GrpcExecError> {
+    let msg = DynamicMessage::decode(desc.clone(), bytes).map_err(|e| GrpcExecError::Decode(e.to_string()))?;
+    serde_json::to_value(&msg).map_err(|e| GrpcExecError::Decode(e.to_string()))
+}
+
+/// Transport seam for a unary gRPC call, so the executor's encode/decode logic
+/// can be tested without a live server.
+#[async_trait]
+trait GrpcCaller: Send + Sync {
+    /// Call `path` (`/package.Service/Method`) with the encoded request message,
+    /// returning the encoded response message.
+    async fn call(&self, path: &str, metadata: &[(String, String)], request: Vec<u8>)
+    -> Result<Vec<u8>, GrpcExecError>;
+}
+
+/// A tonic codec that passes message bytes through untouched; the executor does
+/// the protobuf encoding and decoding around it with the message descriptors.
+#[derive(Default, Clone, Copy)]
+struct BytesCodec;
+
+impl tonic::codec::Codec for BytesCodec {
+    type Encode = Vec<u8>;
+    type Decode = Vec<u8>;
+    type Encoder = Self;
+    type Decoder = Self;
+    fn encoder(&mut self) -> Self::Encoder {
+        *self
+    }
+    fn decoder(&mut self) -> Self::Decoder {
+        *self
+    }
+}
+
+impl tonic::codec::Encoder for BytesCodec {
+    type Item = Vec<u8>;
+    type Error = tonic::Status;
+    fn encode(&mut self, item: Vec<u8>, dst: &mut tonic::codec::EncodeBuf<'_>) -> Result<(), tonic::Status> {
+        dst.put_slice(&item);
+        Ok(())
+    }
+}
+
+impl tonic::codec::Decoder for BytesCodec {
+    type Item = Vec<u8>;
+    type Error = tonic::Status;
+    fn decode(&mut self, src: &mut tonic::codec::DecodeBuf<'_>) -> Result<Option<Vec<u8>>, tonic::Status> {
+        let bytes = src.copy_to_bytes(src.remaining()).to_vec();
+        Ok(Some(bytes))
+    }
+}
+
+/// The real transport: a lazily-connected tonic channel to the gRPC endpoint.
+struct TonicCaller {
+    channel: tonic::transport::Channel,
+}
+
+impl TonicCaller {
+    fn new(endpoint: &str) -> Result<Self, GrpcExecError> {
+        let ep = tonic::transport::Endpoint::from_shared(endpoint.to_string())
+            .map_err(|e| GrpcExecError::Call(e.to_string()))?;
+        Ok(Self {
+            channel: ep.connect_lazy(),
+        })
+    }
+}
+
+#[async_trait]
+impl GrpcCaller for TonicCaller {
+    async fn call(
+        &self,
+        path: &str,
+        metadata: &[(String, String)],
+        request: Vec<u8>,
+    ) -> Result<Vec<u8>, GrpcExecError> {
+        let path =
+            tonic::codegen::http::uri::PathAndQuery::try_from(path).map_err(|e| GrpcExecError::Call(e.to_string()))?;
+        let mut req = tonic::Request::new(request);
+        for (key, value) in metadata {
+            if let (Ok(k), Ok(v)) = (
+                key.parse::<tonic::metadata::MetadataKey<tonic::metadata::Ascii>>(),
+                value.parse::<tonic::metadata::MetadataValue<tonic::metadata::Ascii>>(),
+            ) {
+                req.metadata_mut().insert(k, v);
+            }
+        }
+        // Scope the client so it (and its channel clone) drops before returning.
+        let bytes = {
+            let mut grpc = tonic::client::Grpc::new(self.channel.clone());
+            grpc.ready().await.map_err(|e| GrpcExecError::Call(e.to_string()))?;
+            grpc.unary(req, path, BytesCodec)
+                .await
+                .map_err(|e| GrpcExecError::Call(e.to_string()))?
+                .into_inner()
+        };
+        Ok(bytes)
+    }
+}
+
+/// Executes GraphQL subqueries by calling unary gRPC methods.
+///
+/// Implements the [`SubgraphExecutor`] trait so the planner treats a gRPC source
+/// like any other subgraph; each root field is translated into one unary call
+/// via its [`GrpcMethodMapping`].
+pub struct GrpcSubgraphExecutor {
+    pool: DescriptorPool,
+    metadata: Vec<(String, String)>,
+    fields: HashMap<String, GrpcMethodMapping>,
+    caller: Arc<dyn GrpcCaller>,
+}
+
+impl GrpcSubgraphExecutor {
+    /// Build an executor from a gRPC connector config, loading its descriptor
+    /// set and connecting a lazy channel to the configured endpoint.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`GrpcExecError`] if the descriptor set cannot be read or decoded
+    /// or the endpoint is not a valid URI.
+    pub fn from_config(config: &GrpcConnectorConfig) -> Result<Self, GrpcExecError> {
+        let bytes = std::fs::read(&config.descriptor_set).map_err(|e| GrpcExecError::Descriptor(e.to_string()))?;
+        let pool = DescriptorPool::decode(bytes.as_slice()).map_err(|e| GrpcExecError::Descriptor(e.to_string()))?;
+        let caller = Arc::new(TonicCaller::new(&config.endpoint)?);
+        Ok(Self {
+            pool,
+            metadata: config.metadata.iter().map(|(k, v)| (k.clone(), v.clone())).collect(),
+            fields: config.fields.clone(),
+            caller,
+        })
+    }
+
+    /// Resolve a mapping to its request/response message descriptors and the
+    /// gRPC path (`/package.Service/Method`).
+    fn resolve(&self, mapping: &GrpcMethodMapping) -> Option<(MessageDescriptor, MessageDescriptor, String)> {
+        let service = self.pool.get_service_by_name(&mapping.service)?;
+        let method = service.methods().find(|m| m.name() == mapping.method)?;
+        let path = format!("/{}/{}", mapping.service, mapping.method);
+        Some((method.input(), method.output(), path))
+    }
+
+    /// Encode the field's input, call the method, and decode the response.
+    async fn call_field(&self, mapping: &GrpcMethodMapping, args: &Map<String, Value>) -> Result<Value, GrpcExecError> {
+        let (input_desc, output_desc, path) = self
+            .resolve(mapping)
+            .ok_or_else(|| GrpcExecError::UnknownMethod(format!("{}/{}", mapping.service, mapping.method)))?;
+        let input_json = args
+            .get(&mapping.input)
+            .cloned()
+            .unwrap_or_else(|| Value::Object(Map::new()));
+        let request = encode_request(&input_desc, &input_json)?;
+        let response = self.caller.call(&path, &self.metadata, request).await?;
+        decode_response(&output_desc, &response)
+    }
+}
+
+#[async_trait]
+impl SubgraphExecutor for GrpcSubgraphExecutor {
+    async fn execute_graphql(&self, request: SubgraphRequest) -> Result<SubgraphResponse, ExecutionError> {
+        let roots = crate::rest::parse_root_fields(&request.query, request.variables.as_ref())
+            .map_err(|e| ExecutionError::Parse(e.to_string()))?;
+
+        let mut data = Map::new();
+        let mut errors: Vec<SubgraphError> = Vec::new();
+
+        for root in roots {
+            let Some(mapping) = self.fields.get(&root.field_name) else {
+                errors.push(SubgraphError {
+                    message: format!("no gRPC mapping for field '{}'", root.field_name),
+                });
+                data.insert(root.response_key, Value::Null);
+                continue;
+            };
+            match self.call_field(mapping, &root.args).await {
+                Ok(value) => {
+                    data.insert(root.response_key, value);
+                }
+                Err(e) => {
+                    errors.push(SubgraphError { message: e.to_string() });
+                    data.insert(root.response_key, Value::Null);
+                }
+            }
+        }
+
+        Ok(SubgraphResponse {
+            data: Some(Value::Object(data)),
+            errors: (!errors.is_empty()).then_some(errors),
+        })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -747,5 +975,227 @@ mod tests {
         let a = generate(&fds, "http://x:1", "./x.pb").unwrap();
         let b = generate(&fds, "http://x:1", "./x.pb").unwrap();
         assert_eq!(a, b);
+    }
+
+    // ----- runtime executor -----
+
+    use std::collections::HashMap;
+    use std::sync::{Arc, Mutex};
+
+    use lattice_execution::{SubgraphExecutor, SubgraphRequest};
+
+    fn pool_from(fds: &FileDescriptorSet) -> DescriptorPool {
+        DescriptorPool::decode(fds.encode_to_vec().as_slice()).unwrap()
+    }
+
+    fn order_request_fds() -> FileDescriptorSet {
+        descriptor_set(
+            vec![
+                message("GetOrderRequest", vec![scalar("id", 1, Type::String, Label::Optional)]),
+                message(
+                    "Order",
+                    vec![
+                        scalar("id", 1, Type::String, Label::Optional),
+                        scalar("total", 2, Type::Double, Label::Optional),
+                    ],
+                ),
+            ],
+            vec![],
+            vec![method("GetOrder", ".orders.v1.GetOrderRequest", ".orders.v1.Order")],
+        )
+    }
+
+    /// A caller that records the path and request, and returns canned bytes.
+    struct MockCaller {
+        response: Vec<u8>,
+        seen: Mutex<Option<(String, Vec<u8>)>>,
+    }
+
+    #[async_trait]
+    impl GrpcCaller for MockCaller {
+        async fn call(
+            &self,
+            path: &str,
+            _metadata: &[(String, String)],
+            request: Vec<u8>,
+        ) -> Result<Vec<u8>, GrpcExecError> {
+            *self.seen.lock().unwrap() = Some((path.to_string(), request));
+            Ok(self.response.clone())
+        }
+    }
+
+    #[test]
+    fn encode_then_decode_round_trips() {
+        let fds = order_request_fds();
+        let pool = pool_from(&fds);
+        let desc = pool.get_message_by_name("orders.v1.Order").unwrap();
+        let bytes = encode_request(&desc, &serde_json::json!({ "id": "7", "total": 9.5 })).unwrap();
+        let back = decode_response(&desc, &bytes).unwrap();
+        assert_eq!(back["id"], serde_json::json!("7"));
+        assert_eq!(back["total"], serde_json::json!(9.5));
+    }
+
+    #[tokio::test]
+    async fn executor_resolves_a_field_via_mock_caller() {
+        let fds = order_request_fds();
+        let pool = pool_from(&fds);
+        let order_desc = pool.get_message_by_name("orders.v1.Order").unwrap();
+        let response = encode_request(&order_desc, &serde_json::json!({ "id": "7", "total": 9.5 })).unwrap();
+
+        let mut fields = HashMap::new();
+        fields.insert(
+            "getOrder".to_string(),
+            GrpcMethodMapping {
+                service: "orders.v1.OrderService".to_string(),
+                method: "GetOrder".to_string(),
+                input: "input".to_string(),
+            },
+        );
+        let caller = Arc::new(MockCaller {
+            response,
+            seen: Mutex::new(None),
+        });
+        let exec = GrpcSubgraphExecutor {
+            pool,
+            metadata: vec![],
+            fields,
+            caller: caller.clone(),
+        };
+
+        let request = SubgraphRequest {
+            url: String::new(),
+            query: r#"{ getOrder(input: { id: "7" }) { id total } }"#.to_string(),
+            operation_name: None,
+            variables: None,
+            headers: vec![],
+        };
+        let resp = exec.execute_graphql(request).await.unwrap();
+        let data = resp.data.unwrap();
+        assert_eq!(data["getOrder"]["id"], serde_json::json!("7"));
+        assert_eq!(data["getOrder"]["total"], serde_json::json!(9.5));
+        assert!(resp.errors.is_none());
+
+        // The call hit the right gRPC path and sent the encoded request.
+        let (path, sent) = caller.seen.lock().unwrap().clone().unwrap();
+        assert_eq!(path, "/orders.v1.OrderService/GetOrder");
+        let req_desc = pool_from(&order_request_fds())
+            .get_message_by_name("orders.v1.GetOrderRequest")
+            .unwrap();
+        assert_eq!(decode_response(&req_desc, &sent).unwrap()["id"], serde_json::json!("7"));
+    }
+
+    #[tokio::test]
+    async fn executor_reports_an_unmapped_field() {
+        let fds = order_request_fds();
+        let exec = GrpcSubgraphExecutor {
+            pool: pool_from(&fds),
+            metadata: vec![],
+            fields: HashMap::new(),
+            caller: Arc::new(MockCaller {
+                response: vec![],
+                seen: Mutex::new(None),
+            }),
+        };
+        let request = SubgraphRequest {
+            url: String::new(),
+            query: "{ mysteryField { id } }".to_string(),
+            operation_name: None,
+            variables: None,
+            headers: vec![],
+        };
+        let resp = exec.execute_graphql(request).await.unwrap();
+        assert_eq!(resp.data.unwrap()["mysteryField"], Value::Null);
+        assert!(resp.errors.unwrap()[0].message.contains("no gRPC mapping"));
+    }
+
+    // ----- live transport: a real tonic server over the BytesCodec -----
+
+    /// A tonic service that answers any unary call with fixed response bytes,
+    /// coding with the executor's [`BytesCodec`]. Proves the real wire path.
+    #[derive(Clone)]
+    struct EchoServer {
+        response: Vec<u8>,
+    }
+
+    impl tonic::server::NamedService for EchoServer {
+        const NAME: &'static str = "orders.v1.OrderService";
+    }
+
+    impl tower::Service<tonic::codegen::http::Request<tonic::body::BoxBody>> for EchoServer {
+        type Response = tonic::codegen::http::Response<tonic::body::BoxBody>;
+        type Error = std::convert::Infallible;
+        type Future = std::pin::Pin<Box<dyn std::future::Future<Output = Result<Self::Response, Self::Error>> + Send>>;
+
+        fn poll_ready(&mut self, _cx: &mut std::task::Context<'_>) -> std::task::Poll<Result<(), Self::Error>> {
+            std::task::Poll::Ready(Ok(()))
+        }
+
+        fn call(&mut self, req: tonic::codegen::http::Request<tonic::body::BoxBody>) -> Self::Future {
+            let response = self.response.clone();
+            Box::pin(async move {
+                struct Unary(Vec<u8>);
+                impl tonic::server::UnaryService<Vec<u8>> for Unary {
+                    type Response = Vec<u8>;
+                    type Future = std::pin::Pin<
+                        Box<dyn std::future::Future<Output = Result<tonic::Response<Vec<u8>>, tonic::Status>> + Send>,
+                    >;
+                    fn call(&mut self, _req: tonic::Request<Vec<u8>>) -> Self::Future {
+                        let bytes = self.0.clone();
+                        Box::pin(async move { Ok(tonic::Response::new(bytes)) })
+                    }
+                }
+                let mut grpc = tonic::server::Grpc::new(BytesCodec);
+                Ok(grpc.unary(Unary(response), req).await)
+            })
+        }
+    }
+
+    #[tokio::test]
+    async fn executor_resolves_a_field_over_a_live_grpc_server() {
+        let fds = order_request_fds();
+        let pool = pool_from(&fds);
+        let order_desc = pool.get_message_by_name("orders.v1.Order").unwrap();
+        let response = encode_request(&order_desc, &serde_json::json!({ "id": "7", "total": 9.5 })).unwrap();
+
+        // Start a real gRPC server on an ephemeral port.
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let incoming = tonic::transport::server::TcpIncoming::from_listener(listener, true, None).unwrap();
+        tokio::spawn(async move {
+            tonic::transport::Server::builder()
+                .add_service(EchoServer { response })
+                .serve_with_incoming(incoming)
+                .await
+                .unwrap();
+        });
+
+        let mut fields = HashMap::new();
+        fields.insert(
+            "getOrder".to_string(),
+            GrpcMethodMapping {
+                service: "orders.v1.OrderService".to_string(),
+                method: "GetOrder".to_string(),
+                input: "input".to_string(),
+            },
+        );
+        let exec = GrpcSubgraphExecutor {
+            pool,
+            metadata: vec![],
+            fields,
+            caller: Arc::new(TonicCaller::new(&format!("http://{addr}")).unwrap()),
+        };
+
+        let request = SubgraphRequest {
+            url: String::new(),
+            query: r#"{ getOrder(input: { id: "7" }) { id total } }"#.to_string(),
+            operation_name: None,
+            variables: None,
+            headers: vec![],
+        };
+        let resp = exec.execute_graphql(request).await.unwrap();
+        assert!(resp.errors.is_none(), "errors: {:?}", resp.errors);
+        let data = resp.data.unwrap();
+        assert_eq!(data["getOrder"]["id"], serde_json::json!("7"));
+        assert_eq!(data["getOrder"]["total"], serde_json::json!(9.5));
     }
 }
