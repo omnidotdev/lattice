@@ -263,6 +263,7 @@ fn build_operation(path: &str, method: &str, op: &Value, usage: &mut Usage) -> (
         query: query.into_iter().collect(),
         select: None,
         body: body_arg,
+        response: std::collections::HashMap::new(),
     };
 
     (field_name, field_sdl, mapping)

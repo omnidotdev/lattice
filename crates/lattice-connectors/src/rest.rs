@@ -221,6 +221,42 @@ fn select_value(body: &Value, select: Option<&str>) -> Value {
     )
 }
 
+/// Remap response object keys onto GraphQL field names for upstreams whose JSON
+/// shape differs from the schema.
+///
+/// For each `(graphql_field, source)` the value at `source` (a JSON Pointer when
+/// it starts with `/`, otherwise a top-level key) is placed under
+/// `graphql_field`; keys not named in the map pass through unchanged. An array
+/// is remapped element by element; a non-object value is returned as-is.
+fn apply_response_map(value: Value, map: &HashMap<String, String>) -> Value {
+    if map.is_empty() {
+        return value;
+    }
+    match value {
+        Value::Array(items) => Value::Array(items.into_iter().map(|item| apply_response_map(item, map)).collect()),
+        Value::Object(obj) => {
+            let mut out = obj.clone();
+            let source_value = Value::Object(obj);
+            for (graphql_field, source) in map {
+                let resolved = if source.starts_with('/') {
+                    source_value.pointer(source).cloned().unwrap_or(Value::Null)
+                } else {
+                    source_value.get(source).cloned().unwrap_or(Value::Null)
+                };
+                out.insert(graphql_field.clone(), resolved);
+            }
+            Value::Object(out)
+        }
+        other => other,
+    }
+}
+
+/// Select the field result and then apply any response key remapping.
+fn shape_response(body: &Value, mapping: &RestFieldMapping) -> Value {
+    let selected = select_value(body, mapping.select.as_deref());
+    apply_response_map(selected, &mapping.response)
+}
+
 /// Performs the upstream HTTP call for a REST connector. Abstracted so the
 /// executor can be exercised without a live network.
 #[async_trait]
@@ -372,7 +408,7 @@ impl RestSubgraphExecutor {
             }
         };
         match self.caller.call(&request).await {
-            Ok(body) => select_value(&body, mapping.select.as_deref()),
+            Ok(body) => shape_response(&body, mapping),
             Err(e) => {
                 errors.push(SubgraphError { message: e.to_string() });
                 Value::Null
@@ -417,7 +453,7 @@ impl SubgraphExecutor for RestSubgraphExecutor {
 
             match self.caller.call(&http_request).await {
                 Ok(body) => {
-                    data.insert(root.response_key, select_value(&body, mapping.select.as_deref()));
+                    data.insert(root.response_key, shape_response(&body, mapping));
                 }
                 Err(e) => {
                     errors.push(SubgraphError { message: e.to_string() });
@@ -449,7 +485,70 @@ mod tests {
             query: HashMap::new(),
             select: None,
             body: None,
+            response: HashMap::new(),
         }
+    }
+
+    fn resp_map(pairs: &[(&str, &str)]) -> HashMap<String, String> {
+        pairs
+            .iter()
+            .map(|(k, v)| ((*k).to_string(), (*v).to_string()))
+            .collect()
+    }
+
+    #[test]
+    fn apply_response_map_renames_object_keys() {
+        let body = serde_json::json!({"pet_name": "Rex", "pet_id": 7});
+        let out = apply_response_map(body, &resp_map(&[("name", "pet_name"), ("id", "pet_id")]));
+        assert_eq!(out["name"], serde_json::json!("Rex"));
+        assert_eq!(out["id"], serde_json::json!(7));
+    }
+
+    #[test]
+    fn apply_response_map_is_noop_when_empty() {
+        let body = serde_json::json!({"a": 1});
+        let out = apply_response_map(body.clone(), &HashMap::new());
+        assert_eq!(out, body);
+    }
+
+    #[test]
+    fn apply_response_map_passes_through_unmapped_keys() {
+        let body = serde_json::json!({"pet_name": "Rex", "status": "available"});
+        let out = apply_response_map(body, &resp_map(&[("name", "pet_name")]));
+        assert_eq!(out["name"], serde_json::json!("Rex"));
+        assert_eq!(out["status"], serde_json::json!("available"));
+    }
+
+    #[test]
+    fn apply_response_map_remaps_array_elements() {
+        let body = serde_json::json!([{"pet_name": "Rex"}, {"pet_name": "Fido"}]);
+        let out = apply_response_map(body, &resp_map(&[("name", "pet_name")]));
+        assert_eq!(out[0]["name"], serde_json::json!("Rex"));
+        assert_eq!(out[1]["name"], serde_json::json!("Fido"));
+    }
+
+    #[test]
+    fn apply_response_map_resolves_json_pointer_source() {
+        let body = serde_json::json!({"attributes": {"display_name": "Rex"}});
+        let out = apply_response_map(body, &resp_map(&[("name", "/attributes/display_name")]));
+        assert_eq!(out["name"], serde_json::json!("Rex"));
+    }
+
+    #[test]
+    fn apply_response_map_missing_source_is_null() {
+        let body = serde_json::json!({"other": 1});
+        let out = apply_response_map(body, &resp_map(&[("name", "pet_name")]));
+        assert_eq!(out["name"], Value::Null);
+    }
+
+    #[test]
+    fn shape_response_selects_then_remaps() {
+        let body = serde_json::json!({"data": {"pet_name": "Rex"}});
+        let mut m = mapping("GET", "/pets/{id}");
+        m.select = Some("/data".to_string());
+        m.response = resp_map(&[("name", "pet_name")]);
+        let out = shape_response(&body, &m);
+        assert_eq!(out["name"], serde_json::json!("Rex"));
     }
 
     fn query_pairs(url: &str) -> Vec<(String, String)> {

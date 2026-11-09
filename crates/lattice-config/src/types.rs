@@ -126,6 +126,11 @@ pub struct RestFieldMapping {
     /// request body (for example `input` on a `createPet(input: ...)` mutation).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub body: Option<String>,
+    /// Response field remapping for upstreams whose JSON keys differ from the
+    /// GraphQL field names, mapping a GraphQL field name to the source key or
+    /// JSON Pointer in the (post-`select`) response. Unmapped keys pass through.
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+    pub response: HashMap<String, String>,
 }
 
 fn default_http_method() -> String {
