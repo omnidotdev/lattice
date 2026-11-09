@@ -243,6 +243,54 @@ subgraphs:
     }
 
     #[test]
+    fn load_trusted_documents_config() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("lattice.yaml");
+        std::fs::write(
+            &path,
+            r#"
+server:
+  listen: "0.0.0.0:4000"
+supergraph:
+  path: ./supergraph.graphql
+persisted_queries:
+  enabled: true
+  require: true
+  manifest: ./operations.json
+"#,
+        )
+        .unwrap();
+
+        let config = load(&path).unwrap();
+        let pq = config.persisted_queries.unwrap();
+        assert!(pq.enabled);
+        assert!(pq.require);
+        assert_eq!(pq.manifest.as_deref(), Some("./operations.json"));
+    }
+
+    #[test]
+    fn persisted_queries_require_defaults_off() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("lattice.yaml");
+        std::fs::write(
+            &path,
+            r#"
+server:
+  listen: "0.0.0.0:4000"
+supergraph:
+  path: ./supergraph.graphql
+persisted_queries:
+  enabled: true
+"#,
+        )
+        .unwrap();
+
+        let pq = load(&path).unwrap().persisted_queries.unwrap();
+        assert!(!pq.require);
+        assert_eq!(pq.manifest, None);
+    }
+
+    #[test]
     fn load_json_config() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("lattice.json");
