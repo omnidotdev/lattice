@@ -153,10 +153,14 @@ jobs:
         run: |
           VERSION=$(grep '^version' Cargo.toml | head -1 | sed 's/.*"\(.*\)".*/\1/')
           echo "version=$VERSION" >> $GITHUB_OUTPUT
-      - name: Download all artifacts
+      - name: Download build artifacts
         uses: actions/download-artifact@v4
         with:
           path: artifacts
+          # only the per-target binary tarballs: the image job also uploads a
+          # buildx `.dockerbuild` metadata artifact that this job never needs,
+          # and pulling it in made the whole download fail when that blob flaked
+          pattern: lattice-*
       - name: Extract changelog for version
         id: changelog
         run: |
