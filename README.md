@@ -1,6 +1,15 @@
-# Lattice
+<div align="center">
+  <img src="./assets/logo.png" width="100" />
 
-GraphQL federation gateway for the [Omni](https://omni.dev) ecosystem.
+  <h1 align="center">Lattice</h1>
+
+[Website](https://lattice.omni.dev) | [Docs](https://docs.omni.dev/products/lattice) | [Discord](https://discord.gg/omnidotdev) | [X](https://x.com/omnidotdev) | [Threads](https://www.threads.com/@omnidotdev)
+
+</div>
+
+**Lattice** is a Rust federation gateway that unifies your GraphQL and REST services into one graph and plans every query across them. Self-hostable and Apache-2.0.
+
+Full documentation lives at [docs.omni.dev/products/lattice](https://docs.omni.dev/products/lattice).
 
 ## Features
 
