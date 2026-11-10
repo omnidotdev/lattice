@@ -78,6 +78,13 @@ tracing-opentelemetry = "0.30"
 graphql-tools = "0.5"
 hive-router-query-planner = "2"
 
+# Protobuf / gRPC connectors
+prost = "0.13"
+prost-types = "0.13"
+prost-reflect = { version = "0.14", features = ["serde"] }
+tonic = "0.12"
+bytes = "1"
+
 # Hot-reload
 notify = "7"
 arc-swap = "1"

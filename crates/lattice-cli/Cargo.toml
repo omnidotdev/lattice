@@ -20,6 +20,8 @@ lattice-telemetry = { workspace = true }
 arc-swap = { workspace = true }
 axum = { workspace = true }
 clap = { workspace = true }
+prost = { workspace = true }
+prost-types = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 serde_yaml = { workspace = true }

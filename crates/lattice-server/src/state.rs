@@ -88,14 +88,7 @@ impl AppState {
             .as_ref()
             .map(|sgs| {
                 sgs.iter()
-                    .filter_map(|(name, sg)| {
-                        sg.rest.as_ref().map(|rest| {
-                            tracing::info!(subgraph = %name, "registered REST connector subgraph");
-                            let executor: Arc<dyn lattice_execution::SubgraphExecutor> =
-                                Arc::new(lattice_connectors::rest::RestSubgraphExecutor::from_config(rest));
-                            (name.clone(), executor)
-                        })
-                    })
+                    .filter_map(|(name, sg)| register_connector(name, sg))
                     .collect()
             })
             .unwrap_or_default();
@@ -183,6 +176,33 @@ type AuthInit = (
     Option<lattice_config::ResourceAuthConfig>,
     Vec<tokio::task::JoinHandle<()>>,
 );
+
+/// Build the in-process executor for a connector subgraph (REST or gRPC), or
+/// `None` for a plain GraphQL `url` subgraph or a connector that fails to load.
+fn register_connector(
+    name: &str,
+    sg: &lattice_config::SubgraphConfig,
+) -> Option<(String, Arc<dyn lattice_execution::SubgraphExecutor>)> {
+    if let Some(rest) = sg.rest.as_ref() {
+        tracing::info!(subgraph = %name, "registered REST connector subgraph");
+        let executor: Arc<dyn lattice_execution::SubgraphExecutor> =
+            Arc::new(lattice_connectors::rest::RestSubgraphExecutor::from_config(rest));
+        return Some((name.to_string(), executor));
+    }
+    if let Some(grpc) = sg.grpc.as_ref() {
+        return match lattice_connectors::grpc::GrpcSubgraphExecutor::from_config(grpc) {
+            Ok(executor) => {
+                tracing::info!(subgraph = %name, "registered gRPC connector subgraph");
+                Some((name.to_string(), Arc::new(executor)))
+            }
+            Err(e) => {
+                tracing::error!(subgraph = %name, error = %e, "failed to initialize gRPC connector subgraph");
+                None
+            }
+        };
+    }
+    None
+}
 
 /// Build the persisted-query store and whether trusted-documents mode is on.
 ///
