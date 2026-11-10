@@ -21,6 +21,7 @@ Full documentation lives at [docs.omni.dev/products/lattice](https://docs.omni.d
 - Entity and response caching, plus rate limiting (Valkey/Redis)
 - Query depth, complexity, and alias limits
 - Automatic Persisted Queries (APQ)
+- Trusted documents (persisted operation allowlisting)
 - WASI plugin system (Extism)
 - Built-in GraphiQL playground
 - `/health` liveness endpoint

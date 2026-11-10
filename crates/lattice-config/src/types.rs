@@ -49,6 +49,14 @@ pub struct PersistedQueriesConfig {
     /// are evicted.
     #[serde(default = "default_apq_cache_size")]
     pub cache_size: usize,
+    /// Trusted-documents mode: run only operations from the preloaded `manifest`,
+    /// reject freeform queries, and register nothing at runtime.
+    #[serde(default)]
+    pub require: bool,
+    /// Path to a JSON manifest mapping each operation's lowercase hex SHA-256 to
+    /// its document, preloaded as the trusted set when `require` is set.
+    #[serde(default)]
+    pub manifest: Option<String>,
 }
 
 const fn default_apq_cache_size() -> usize {

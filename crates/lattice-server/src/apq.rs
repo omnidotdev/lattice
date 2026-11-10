@@ -105,6 +105,42 @@ pub fn resolve_apq(query: Option<&str>, hash: &str, store: &ApqStore) -> ApqOutc
     )
 }
 
+/// Resolve a request in trusted-documents mode: only operations already in the
+/// store run, and nothing is registered. A hash that is not in the trusted set
+/// is rejected, and any inline query body is ignored in favor of the stored
+/// document, so a client cannot run an operation outside the allowlist.
+pub fn resolve_trusted(hash: &str, store: &ApqStore) -> ApqOutcome {
+    store.get(hash).map_or(ApqOutcome::NotFound, ApqOutcome::Resolved)
+}
+
+/// Parse a trusted-documents manifest: a JSON object mapping each operation's
+/// lowercase hex SHA-256 to its document body. Every entry is verified to hash
+/// to its key, so a tampered or mislabeled manifest is rejected at load.
+///
+/// # Errors
+///
+/// Returns an error string if the JSON is not an object of strings, or if any
+/// document does not hash to its key.
+pub fn parse_manifest(json: &str) -> Result<Vec<(String, String)>, String> {
+    let value: serde_json::Value = serde_json::from_str(json).map_err(|e| e.to_string())?;
+    let object = value
+        .as_object()
+        .ok_or_else(|| "manifest must be a JSON object of hash to document".to_string())?;
+    object
+        .iter()
+        .map(|(hash, body)| {
+            let body = body
+                .as_str()
+                .ok_or_else(|| format!("manifest value for {hash} is not a string"))?;
+            if sha256_hex(body) == *hash {
+                Ok((hash.clone(), body.to_string()))
+            } else {
+                Err(format!("manifest document for {hash} does not match its hash"))
+            }
+        })
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -160,6 +196,48 @@ mod tests {
         assert_eq!(resolve_apq(Some(query), wrong, &store), ApqOutcome::HashMismatch);
         assert_eq!(store.get(wrong), None);
         assert_eq!(store.len(), 0);
+    }
+
+    #[test]
+    fn trusted_resolves_a_known_hash_without_registering() {
+        let store = ApqStore::new(10);
+        let query = "{ me { id } }";
+        let hash = sha256_hex(query);
+        store.insert(hash.clone(), query.to_string());
+
+        // A known hash resolves to the stored document.
+        assert_eq!(resolve_trusted(&hash, &store), ApqOutcome::Resolved(query.to_string()));
+    }
+
+    #[test]
+    fn trusted_rejects_an_unknown_hash_and_never_registers() {
+        let store = ApqStore::new(10);
+        assert_eq!(resolve_trusted("deadbeef", &store), ApqOutcome::NotFound);
+        // Nothing is registered in trusted mode.
+        assert_eq!(store.len(), 0);
+    }
+
+    #[test]
+    fn parse_manifest_reads_hash_to_document_pairs() {
+        let a = "{ me { id } }";
+        let b = "{ posts { title } }";
+        let json = format!(r#"{{ "{}": {a:?}, "{}": {b:?} }}"#, sha256_hex(a), sha256_hex(b));
+        let pairs = parse_manifest(&json).unwrap();
+        assert_eq!(pairs.len(), 2);
+        assert!(pairs.contains(&(sha256_hex(a), a.to_string())));
+        assert!(pairs.contains(&(sha256_hex(b), b.to_string())));
+    }
+
+    #[test]
+    fn parse_manifest_rejects_a_hash_that_does_not_match_its_document() {
+        let json = r#"{ "0000000000000000000000000000000000000000000000000000000000000000": "{ me { id } }" }"#;
+        assert!(parse_manifest(json).is_err());
+    }
+
+    #[test]
+    fn parse_manifest_rejects_a_non_object() {
+        assert!(parse_manifest("[1, 2, 3]").is_err());
+        assert!(parse_manifest("not json").is_err());
     }
 
     #[test]

@@ -53,6 +53,9 @@ pub struct AppState {
     pub authz_mode: Option<String>,
     /// Automatic Persisted Queries store, present when APQ is enabled in config.
     pub apq_store: Option<crate::apq::ApqStore>,
+    /// Trusted-documents mode: only preloaded operations run and freeform
+    /// queries are rejected.
+    pub persisted_require: bool,
 }
 
 impl AppState {
@@ -132,10 +135,7 @@ impl AppState {
             )
         });
 
-        let apq_store = config.persisted_queries.as_ref().filter(|pq| pq.enabled).map(|pq| {
-            tracing::info!(cache_size = pq.cache_size, "automatic persisted queries enabled");
-            crate::apq::ApqStore::new(pq.cache_size)
-        });
+        let (apq_store, persisted_require) = build_persisted_queries(&config);
 
         Self {
             config,
@@ -159,6 +159,7 @@ impl AppState {
             auth_tree,
             authz_mode,
             apq_store,
+            persisted_require,
         }
     }
 
@@ -201,6 +202,51 @@ fn register_connector(
         };
     }
     None
+}
+
+/// Build the persisted-query store and whether trusted-documents mode is on.
+///
+/// In trusted mode the store is sized to and preloaded from the manifest, and
+/// nothing is registered at runtime; otherwise it is a bounded APQ cache.
+fn build_persisted_queries(config: &Config) -> (Option<crate::apq::ApqStore>, bool) {
+    let Some(pq) = config.persisted_queries.as_ref().filter(|pq| pq.enabled) else {
+        return (None, false);
+    };
+    if pq.require {
+        let entries = load_trusted_manifest(pq.manifest.as_deref());
+        let count = entries.len();
+        let store = crate::apq::ApqStore::new(count.max(1));
+        for (hash, document) in entries {
+            store.insert(hash, document);
+        }
+        tracing::info!(
+            operations = count,
+            "trusted documents enabled (freeform queries rejected)"
+        );
+        (Some(store), true)
+    } else {
+        tracing::info!(cache_size = pq.cache_size, "automatic persisted queries enabled");
+        (Some(crate::apq::ApqStore::new(pq.cache_size)), false)
+    }
+}
+
+/// Load and parse the trusted-documents manifest. On any read or parse failure,
+/// logs and returns no entries, so trusted mode fails closed (every operation is
+/// then rejected) rather than silently opening up.
+fn load_trusted_manifest(path: Option<&str>) -> Vec<(String, String)> {
+    let Some(path) = path else {
+        tracing::warn!("trusted documents enabled but no manifest configured; all operations will be rejected");
+        return Vec::new();
+    };
+    let Ok(json) = std::fs::read_to_string(path).inspect_err(|e| {
+        tracing::error!(error = %e, manifest = path, "failed to read trusted documents manifest; all operations will be rejected");
+    }) else {
+        return Vec::new();
+    };
+    crate::apq::parse_manifest(&json).unwrap_or_else(|e| {
+        tracing::error!(error = %e, manifest = path, "failed to parse trusted documents manifest; all operations will be rejected");
+        Vec::new()
+    })
 }
 
 /// Initialize auth validators from config.
