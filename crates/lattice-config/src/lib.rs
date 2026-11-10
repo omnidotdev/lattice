@@ -3,9 +3,10 @@ mod types;
 mod watcher;
 
 pub use types::{
-    ApiKeyEntry, ApiKeysConfig, Config, ContractVariantConfig, ContractsConfig, CorsConfig, CsrfConfig, JwtConfig,
-    JwtProviderConfig, LimitsConfig, McpConfig, PersistedQueriesConfig, PluginConfig, PrometheusConfig,
-    ResourceAuthConfig, ResourceAuthOverride, RestConnectorConfig, RestFieldMapping, SubgraphConfig, TelemetryConfig,
+    ApiKeyEntry, ApiKeysConfig, Config, ContractVariantConfig, ContractsConfig, CorsConfig, CsrfConfig,
+    GrpcConnectorConfig, GrpcMethodMapping, JwtConfig, JwtProviderConfig, LimitsConfig, McpConfig,
+    PersistedQueriesConfig, PluginConfig, PrometheusConfig, ResourceAuthConfig, ResourceAuthOverride,
+    RestConnectorConfig, RestFieldMapping, SubgraphConfig, TelemetryConfig,
 };
 pub use watcher::ConfigWatcher;
 
@@ -240,6 +241,102 @@ subgraphs:
         let rest = subgraphs.get("petstore").unwrap().rest.as_ref().unwrap();
         assert_eq!(rest.fields.get("createPet").unwrap().body.as_deref(), Some("input"));
         assert_eq!(rest.entities.get("Pet").unwrap().path, "/pets/{id}");
+    }
+
+    #[test]
+    fn load_grpc_connector_config() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("lattice.yaml");
+        std::fs::write(
+            &path,
+            r#"
+server:
+  listen: "0.0.0.0:4000"
+supergraph:
+  path: ./supergraph.graphql
+subgraphs:
+  orders:
+    schema: ./orders.graphql
+    grpc:
+      endpoint: "http://orders.internal:50051"
+      descriptor_set: ./orders.pb
+      metadata:
+        Authorization: "Bearer token"
+      fields:
+        order:
+          service: orders.v1.OrderService
+          method: GetOrder
+          input: req
+        createOrder:
+          service: orders.v1.OrderService
+          method: CreateOrder
+"#,
+        )
+        .unwrap();
+
+        let config = load(&path).unwrap();
+        let subgraphs = config.subgraphs.unwrap();
+        let grpc = subgraphs.get("orders").unwrap().grpc.as_ref().unwrap();
+        assert_eq!(grpc.endpoint, "http://orders.internal:50051");
+        assert_eq!(grpc.descriptor_set, "./orders.pb");
+        assert_eq!(
+            grpc.metadata.get("Authorization").map(String::as_str),
+            Some("Bearer token")
+        );
+        let order = grpc.fields.get("order").unwrap();
+        assert_eq!(order.service, "orders.v1.OrderService");
+        assert_eq!(order.method, "GetOrder");
+        assert_eq!(order.input, "req");
+        // input defaults to "input" when omitted
+        assert_eq!(grpc.fields.get("createOrder").unwrap().input, "input");
+    }
+
+    #[test]
+    fn load_trusted_documents_config() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("lattice.yaml");
+        std::fs::write(
+            &path,
+            r#"
+server:
+  listen: "0.0.0.0:4000"
+supergraph:
+  path: ./supergraph.graphql
+persisted_queries:
+  enabled: true
+  require: true
+  manifest: ./operations.json
+"#,
+        )
+        .unwrap();
+
+        let config = load(&path).unwrap();
+        let pq = config.persisted_queries.unwrap();
+        assert!(pq.enabled);
+        assert!(pq.require);
+        assert_eq!(pq.manifest.as_deref(), Some("./operations.json"));
+    }
+
+    #[test]
+    fn persisted_queries_require_defaults_off() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("lattice.yaml");
+        std::fs::write(
+            &path,
+            r#"
+server:
+  listen: "0.0.0.0:4000"
+supergraph:
+  path: ./supergraph.graphql
+persisted_queries:
+  enabled: true
+"#,
+        )
+        .unwrap();
+
+        let pq = load(&path).unwrap().persisted_queries.unwrap();
+        assert!(!pq.require);
+        assert_eq!(pq.manifest, None);
     }
 
     #[test]

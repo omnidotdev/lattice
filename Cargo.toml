@@ -81,6 +81,13 @@ hive-router-query-planner = "2"
 # OData connector (EDMX parsing)
 roxmltree = "0.20"
 
+# Protobuf / gRPC connectors
+prost = "0.13"
+prost-types = "0.13"
+prost-reflect = { version = "0.14", features = ["serde"] }
+tonic = "0.12"
+bytes = "1"
+
 # Hot-reload
 notify = "7"
 arc-swap = "1"

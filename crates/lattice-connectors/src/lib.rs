@@ -5,6 +5,7 @@
 //! other subgraph; a connector translates the planner's subquery into the
 //! upstream protocol and shapes the response back into GraphQL.
 
+pub mod grpc;
 pub mod odata;
 pub mod openapi;
 pub mod rest;

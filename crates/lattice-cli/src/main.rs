@@ -1,5 +1,6 @@
 mod check;
 mod compose;
+mod grpc;
 mod odata;
 mod openapi;
 mod serve;
@@ -64,6 +65,25 @@ enum Commands {
         base_url: Option<String>,
     },
 
+    /// Generate a gRPC subgraph (SDL + connector config) from a protobuf
+    /// descriptor set (`protoc --descriptor_set_out`).
+    Grpc {
+        /// Path to the compiled protobuf `FileDescriptorSet`.
+        descriptor_set: PathBuf,
+
+        /// Output path for the generated GraphQL SDL.
+        #[arg(short, long, default_value = "grpc.graphql")]
+        output: PathBuf,
+
+        /// Subgraph name used in the printed config snippet.
+        #[arg(short, long, default_value = "grpc")]
+        name: String,
+
+        /// gRPC server endpoint to call at request time.
+        #[arg(short, long, default_value = "http://localhost:50051")]
+        endpoint: String,
+    },
+
     /// Generate a REST subgraph (SDL + connector config) from an OData 4.0
     /// `$metadata` (EDMX) document.
     Odata {
@@ -118,6 +138,12 @@ fn run(command: Commands) -> Result<(), Box<dyn std::error::Error>> {
             name,
             base_url,
         } => openapi::run(&spec, &output, &name, base_url.as_deref())?,
+        Commands::Grpc {
+            descriptor_set,
+            output,
+            name,
+            endpoint,
+        } => grpc::run(&descriptor_set, &output, &name, &endpoint)?,
         Commands::Odata {
             metadata,
             output,
