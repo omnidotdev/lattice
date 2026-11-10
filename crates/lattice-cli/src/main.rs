@@ -1,6 +1,7 @@
 mod check;
 mod compose;
 mod grpc;
+mod odata;
 mod openapi;
 mod serve;
 
@@ -82,6 +83,25 @@ enum Commands {
         #[arg(short, long, default_value = "http://localhost:50051")]
         endpoint: String,
     },
+
+    /// Generate a REST subgraph (SDL + connector config) from an OData 4.0
+    /// `$metadata` (EDMX) document.
+    Odata {
+        /// Path to the OData `$metadata` document (EDMX XML).
+        metadata: PathBuf,
+
+        /// Output path for the generated GraphQL SDL.
+        #[arg(short, long, default_value = "odata.graphql")]
+        output: PathBuf,
+
+        /// Subgraph name used in the printed config snippet.
+        #[arg(short, long, default_value = "odata")]
+        name: String,
+
+        /// OData service root URL that entity-set paths are appended to.
+        #[arg(short, long, default_value = "http://localhost/odata")]
+        base_url: String,
+    },
 }
 
 fn main() {
@@ -124,6 +144,12 @@ fn run(command: Commands) -> Result<(), Box<dyn std::error::Error>> {
             name,
             endpoint,
         } => grpc::run(&descriptor_set, &output, &name, &endpoint)?,
+        Commands::Odata {
+            metadata,
+            output,
+            name,
+            base_url,
+        } => odata::run(&metadata, &output, &name, &base_url)?,
     }
     Ok(())
 }

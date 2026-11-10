@@ -78,6 +78,9 @@ tracing-opentelemetry = "0.30"
 graphql-tools = "0.5"
 hive-router-query-planner = "2"
 
+# OData connector (EDMX parsing)
+roxmltree = "0.20"
+
 # Protobuf / gRPC connectors
 prost = "0.13"
 prost-types = "0.13"
