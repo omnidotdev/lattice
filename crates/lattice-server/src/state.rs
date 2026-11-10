@@ -177,8 +177,9 @@ type AuthInit = (
     Vec<tokio::task::JoinHandle<()>>,
 );
 
-/// Build the in-process executor for a connector subgraph (REST or gRPC), or
-/// `None` for a plain GraphQL `url` subgraph or a connector that fails to load.
+/// Build the in-process executor for a connector subgraph (REST, gRPC, or
+/// Postgres), or `None` for a plain GraphQL `url` subgraph or a connector that
+/// fails to initialize.
 fn register_connector(
     name: &str,
     sg: &lattice_config::SubgraphConfig,
@@ -197,6 +198,18 @@ fn register_connector(
             }
             Err(e) => {
                 tracing::error!(subgraph = %name, error = %e, "failed to initialize gRPC connector subgraph");
+                None
+            }
+        };
+    }
+    if let Some(pg) = sg.postgres.as_ref() {
+        return match lattice_connectors::postgres::PostgresSubgraphExecutor::from_config(pg) {
+            Ok(executor) => {
+                tracing::info!(subgraph = %name, "registered Postgres connector subgraph");
+                Some((name.to_string(), Arc::new(executor)))
+            }
+            Err(e) => {
+                tracing::error!(subgraph = %name, error = %e, "failed to initialize Postgres connector subgraph");
                 None
             }
         };

@@ -76,11 +76,11 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
-      # Install the toolchain pinned in rust-toolchain.toml (1.87), not 1.98, so
-      # the cross target std lands on the toolchain cargo actually builds with
+      # Install the toolchain pinned in rust-toolchain.toml (1.98) so the cross
+      # target std lands on the toolchain cargo actually builds with
       - uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: "1.87"
+          toolchain: "1.98"
           targets: ${{ matrix.target }}
       - name: Install cross-compilation tools
         if: matrix.target == 'aarch64-unknown-linux-gnu'

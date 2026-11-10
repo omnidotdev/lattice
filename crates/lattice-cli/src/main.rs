@@ -3,6 +3,7 @@ mod compose;
 mod grpc;
 mod odata;
 mod openapi;
+mod postgres;
 mod serve;
 
 use std::path::PathBuf;
@@ -102,6 +103,21 @@ enum Commands {
         #[arg(short, long, default_value = "http://localhost/odata")]
         base_url: String,
     },
+
+    /// Generate a subgraph (SDL + connector config) by introspecting a Postgres
+    /// database.
+    Postgres {
+        /// Postgres connection URL (`postgres://user:pass@host:5432/dbname`).
+        url: String,
+
+        /// Output path for the generated GraphQL SDL.
+        #[arg(short, long, default_value = "postgres.graphql")]
+        output: PathBuf,
+
+        /// Subgraph name used in the printed config snippet.
+        #[arg(short, long, default_value = "postgres")]
+        name: String,
+    },
 }
 
 fn main() {
@@ -150,6 +166,10 @@ fn run(command: Commands) -> Result<(), Box<dyn std::error::Error>> {
             name,
             base_url,
         } => odata::run(&metadata, &output, &name, &base_url)?,
+        Commands::Postgres { url, output, name } => {
+            let rt = tokio::runtime::Runtime::new()?;
+            rt.block_on(postgres::run(&url, &output, &name))?;
+        }
     }
     Ok(())
 }

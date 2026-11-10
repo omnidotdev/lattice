@@ -43,18 +43,22 @@ mod tests {
         }
     }
 
+    // The trait methods are async; this in-memory mock has nothing to await.
     impl EntityCache for InMemoryCache {
+        #[allow(clippy::unused_async_trait_impl)]
         async fn get(&self, key: &str) -> Result<Option<String>, CacheError> {
             let store = self.store.lock().map_err(|e| CacheError::Backend(e.to_string()))?;
             Ok(store.get(key).cloned())
         }
 
+        #[allow(clippy::unused_async_trait_impl)]
         async fn set(&self, key: &str, value: &str, _ttl_seconds: u64) -> Result<(), CacheError> {
             let mut store = self.store.lock().map_err(|e| CacheError::Backend(e.to_string()))?;
             store.insert(key.to_owned(), value.to_owned());
             Ok(())
         }
 
+        #[allow(clippy::unused_async_trait_impl)]
         async fn delete(&self, key: &str) -> Result<(), CacheError> {
             let mut store = self.store.lock().map_err(|e| CacheError::Backend(e.to_string()))?;
             store.remove(key);

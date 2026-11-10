@@ -96,6 +96,10 @@ pub struct SubgraphConfig {
     /// a compiled protobuf descriptor set.
     #[serde(default)]
     pub grpc: Option<GrpcConnectorConfig>,
+    /// Postgres connector. When set, the subgraph is backed by a Postgres
+    /// database, and the gateway translates its subqueries into SQL.
+    #[serde(default)]
+    pub postgres: Option<PostgresConnectorConfig>,
 }
 
 /// A REST upstream exposed to the federated graph as a subgraph. The supergraph
@@ -181,6 +185,34 @@ pub struct GrpcMethodMapping {
     /// Field argument whose value is the request message (defaults to `input`).
     #[serde(default = "default_grpc_input")]
     pub input: String,
+}
+
+/// A Postgres database exposed to the federated graph as a subgraph.
+///
+/// The supergraph SDL declares the subgraph's shape; this config maps its root
+/// fields to tables (a collection, or a single row by primary key).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PostgresConnectorConfig {
+    /// Postgres connection URL (for example
+    /// `postgres://user:pass@host:5432/dbname`).
+    pub url: String,
+    /// Map of GraphQL root field name to the table query it runs.
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+    pub fields: HashMap<String, PostgresQueryMapping>,
+}
+
+/// How one GraphQL root field maps to a table query.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PostgresQueryMapping {
+    /// Table name (unquoted; it is a trusted identifier from introspection).
+    pub table: String,
+    /// Columns to select, in SDL order. Empty selects all columns.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub columns: Vec<String>,
+    /// When set, the field returns one row looked up by this primary-key column,
+    /// taken as a required argument; otherwise it returns the whole collection.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pk: Option<String>,
 }
 
 fn default_grpc_input() -> String {

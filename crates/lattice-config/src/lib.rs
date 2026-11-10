@@ -5,8 +5,8 @@ mod watcher;
 pub use types::{
     ApiKeyEntry, ApiKeysConfig, Config, ContractVariantConfig, ContractsConfig, CorsConfig, CsrfConfig,
     GrpcConnectorConfig, GrpcMethodMapping, JwtConfig, JwtProviderConfig, LimitsConfig, McpConfig,
-    PersistedQueriesConfig, PluginConfig, PrometheusConfig, ResourceAuthConfig, ResourceAuthOverride,
-    RestConnectorConfig, RestFieldMapping, SubgraphConfig, TelemetryConfig,
+    PersistedQueriesConfig, PluginConfig, PostgresConnectorConfig, PostgresQueryMapping, PrometheusConfig,
+    ResourceAuthConfig, ResourceAuthOverride, RestConnectorConfig, RestFieldMapping, SubgraphConfig, TelemetryConfig,
 };
 pub use watcher::ConfigWatcher;
 
@@ -241,6 +241,42 @@ subgraphs:
         let rest = subgraphs.get("petstore").unwrap().rest.as_ref().unwrap();
         assert_eq!(rest.fields.get("createPet").unwrap().body.as_deref(), Some("input"));
         assert_eq!(rest.entities.get("Pet").unwrap().path, "/pets/{id}");
+    }
+
+    #[test]
+    fn load_postgres_connector_config() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("lattice.yaml");
+        std::fs::write(
+            &path,
+            r#"
+server:
+  listen: "0.0.0.0:4000"
+supergraph:
+  path: ./supergraph.graphql
+subgraphs:
+  db:
+    schema: ./db.graphql
+    postgres:
+      url: "postgres://app:secret@localhost:5432/app"
+      fields:
+        users:
+          table: users
+          columns: [id, name]
+        users_by_pk:
+          table: users
+          columns: [id, name]
+          pk: id
+"#,
+        )
+        .unwrap();
+
+        let config = load(&path).unwrap();
+        let pg = config.subgraphs.unwrap().get("db").unwrap().postgres.clone().unwrap();
+        assert_eq!(pg.url, "postgres://app:secret@localhost:5432/app");
+        assert_eq!(pg.fields.get("users").unwrap().table, "users");
+        assert_eq!(pg.fields.get("users").unwrap().pk, None);
+        assert_eq!(pg.fields.get("users_by_pk").unwrap().pk.as_deref(), Some("id"));
     }
 
     #[test]

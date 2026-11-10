@@ -8,4 +8,5 @@
 pub mod grpc;
 pub mod odata;
 pub mod openapi;
+pub mod postgres;
 pub mod rest;

@@ -17,7 +17,7 @@ members = [
 [workspace.package]
 version = "0.3.0"
 edition = "2024"
-rust-version = "1.87"
+rust-version = "1.98"
 license = "Apache-2.0"
 repository = "https://github.com/omnidotdev/lattice"
 homepage = "https://omni.dev"
@@ -78,6 +78,10 @@ tracing-opentelemetry = "0.30"
 graphql-tools = "0.5"
 hive-router-query-planner = "2"
 
+# Postgres connector
+tokio-postgres = { version = "0.7", features = ["with-serde_json-1"] }
+deadpool-postgres = "0.14"
+
 # OData connector (EDMX parsing)
 roxmltree = "0.20"
 
@@ -119,3 +123,10 @@ all = { level = "deny", priority = -1 }
 pedantic = { level = "deny", priority = -1 }
 nursery = { level = "warn", priority = -1 }
 module_name_repetitions = "allow"
+# Nested `if let` guards read clearly as-is; collapsing them into `let`-chains
+# (newly suggested since let-chains stabilized) is not worth the churn.
+collapsible_if = "allow"
+# These two nursery lints disagree with each other on `let mut x; if ... { x = }`
+# versus `map_or`, so neither is a reliable signal; keep the explicit form.
+useless_let_if_seq = "allow"
+option_if_let_else = "allow"

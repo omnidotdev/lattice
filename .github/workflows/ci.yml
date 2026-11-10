@@ -14,13 +14,28 @@ jobs:
     name: Check
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    # Postgres for the connector's live-database integration tests, which skip
+    # when LATTICE_TEST_DATABASE_URL is unset.
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: lattice_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - uses: actions/checkout@v4
       # Install the toolchain pinned in rust-toolchain.toml (not stable), with
       # the components, so cargo fmt/clippy do not fail under the pin override.
       - uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: "1.87"
+          toolchain: "1.98"
           components: clippy, rustfmt
       - uses: Swatinem/rust-cache@v2
       - name: Check formatting
@@ -29,3 +44,5 @@ jobs:
         run: cargo clippy --workspace -- -D warnings
       - name: Run tests
         run: cargo test --workspace
+        env:
+          LATTICE_TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/lattice_test
