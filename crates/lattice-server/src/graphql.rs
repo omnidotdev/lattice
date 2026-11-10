@@ -93,13 +93,32 @@ fn apq_error(message: &str, code: &str) -> axum::response::Response {
 /// `persistedQuery` extension is present. Returns `Err(response)` to short
 /// circuit with an APQ protocol error or a missing-query error.
 fn resolve_request_query(
-    state: &AppState,
+    apq_store: Option<&crate::apq::ApqStore>,
+    require_trusted: bool,
     raw_query: Option<String>,
     persisted: Option<&PersistedQueryExtension>,
 ) -> Result<String, Box<axum::response::Response>> {
     let hash = persisted.and_then(|p| p.sha256_hash.as_deref());
 
-    match (hash, state.apq_store.as_ref()) {
+    // Trusted-documents mode: only operations in the preloaded manifest run, and
+    // a freeform query (no hash, or a hash outside the trusted set) is rejected.
+    if require_trusted {
+        return match (hash, apq_store) {
+            (Some(hash), Some(store)) => match crate::apq::resolve_trusted(hash, store) {
+                crate::apq::ApqOutcome::Resolved(query) => Ok(query),
+                _ => Err(Box::new(apq_error(
+                    "PersistedQueryNotFound",
+                    "PERSISTED_QUERY_NOT_FOUND",
+                ))),
+            },
+            _ => Err(Box::new(apq_error(
+                "operation is not a trusted document",
+                "PERSISTED_QUERY_REQUIRED",
+            ))),
+        };
+    }
+
+    match (hash, apq_store) {
         // APQ request against a configured store.
         (Some(hash), Some(store)) => match crate::apq::resolve_apq(raw_query.as_deref(), hash, store) {
             crate::apq::ApqOutcome::Resolved(query) => Ok(query),
@@ -365,7 +384,7 @@ pub async fn handle(
 
     // Resolve the effective query (applying APQ) before anything else.
     let persisted = raw.extensions.as_ref().and_then(|e| e.persisted_query.as_ref());
-    let query = match resolve_request_query(&state, raw.query, persisted) {
+    let query = match resolve_request_query(state.apq_store.as_ref(), state.persisted_require, raw.query, persisted) {
         Ok(query) => query,
         Err(response) => return *response,
     };
@@ -628,4 +647,67 @@ pub async fn handle(
     }
 
     Json(response).into_response()
+}
+
+#[cfg(test)]
+mod persisted_tests {
+    use super::*;
+    use crate::apq::{ApqStore, sha256_hex};
+
+    fn ext(hash: &str) -> PersistedQueryExtension {
+        PersistedQueryExtension {
+            sha256_hash: Some(hash.to_string()),
+        }
+    }
+
+    #[test]
+    fn trusted_runs_a_known_operation_by_hash() {
+        let store = ApqStore::new(10);
+        let query = "{ me { id } }";
+        let hash = sha256_hex(query);
+        store.insert(hash.clone(), query.to_string());
+
+        let out = resolve_request_query(Some(&store), true, None, Some(&ext(&hash)));
+        assert_eq!(out.unwrap(), query);
+    }
+
+    #[test]
+    fn trusted_rejects_an_unknown_hash() {
+        let store = ApqStore::new(10);
+        let out = resolve_request_query(Some(&store), true, None, Some(&ext("deadbeef")));
+        assert!(out.is_err());
+    }
+
+    #[test]
+    fn trusted_rejects_a_freeform_query() {
+        let store = ApqStore::new(10);
+        let out = resolve_request_query(Some(&store), true, Some("{ me { id } }".to_string()), None);
+        assert!(out.is_err());
+    }
+
+    #[test]
+    fn trusted_refuses_an_untrusted_hash_even_with_a_matching_body() {
+        let store = ApqStore::new(10);
+        let query = "{ evil { secrets } }";
+        let hash = sha256_hex(query);
+        let out = resolve_request_query(Some(&store), true, Some(query.to_string()), Some(&ext(&hash)));
+        assert!(out.is_err());
+        assert_eq!(store.get(&hash), None, "untrusted operation must not be registered");
+    }
+
+    #[test]
+    fn apq_mode_still_registers_and_resolves() {
+        let store = ApqStore::new(10);
+        let query = "{ me { id } }";
+        let hash = sha256_hex(query);
+        let out = resolve_request_query(Some(&store), false, Some(query.to_string()), Some(&ext(&hash)));
+        assert_eq!(out.unwrap(), query);
+        assert_eq!(store.get(&hash), Some(query.to_string()));
+    }
+
+    #[test]
+    fn freeform_query_runs_without_persisted_queries() {
+        let out = resolve_request_query(None, false, Some("{ me { id } }".to_string()), None);
+        assert_eq!(out.unwrap(), "{ me { id } }");
+    }
 }
